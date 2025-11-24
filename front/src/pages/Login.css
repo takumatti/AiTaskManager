@@ -1,0 +1,28 @@
+/* Login.css: ログイン画面のカスタムスタイル */
+
+.login-bg {
+  background: linear-gradient(135deg, #e0e7ff 0%, #f8fafc 100%);
+}
+
+.login-card {
+  border-radius: 1.5rem;
+  background: #fff;
+  border: none;
+}
+
+.login-btn {
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.08);
+  transition: box-shadow 0.2s;
+}
+.login-btn:active {
+  box-shadow: 0 1px 4px rgba(0, 123, 255, 0.12);
+}
+
+@media (max-width: 500px) {
+  .login-card {
+    padding: 1.5rem 0.5rem;
+    border-radius: 1rem;
+  }
+}

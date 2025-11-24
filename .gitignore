@@ -1,0 +1,67 @@
+# ===============================
+# フロントエンド（React）
+# ===============================
+
+# Node.jsの依存関係
+front/node_modules
+
+# ビルド成果物
+front/build
+front/dist
+
+# 環境変数
+front/.env
+front/.gitignore
+front/README.md
+front/eslint.config.js
+front/package-lock.json
+front/package.json
+front/tsconfig.app.json
+front/tsconfig.json
+front/tscongig.node.json
+front/vite.config.ts
+front/vite-env.d.ts
+
+# ===============================
+# バックエンド（Spring Boot / Java）
+# ===============================
+
+back/gradle
+back/.gitattributes
+back/gitignore
+back/build.gradle
+back/gradlew
+back/gradlew.bat
+back/settings/gradle
+back/src/test/*
+
+# Gradleビルド関連
+back/.gradle
+back/build
+back/bin
+
+# Eclipse / IntelliJ / IDE関連
+*.iml
+.idea/
+*.class
+
+# OS依存
+.DS_Store
+Thumbs.db
+
+# ===============================
+# リソース / 設定ファイル
+# ===============================
+# application.propertiesやgeneratorConfig.xmlはプロジェクト依存
+# 秘密情報なら除外、共有するならGit管理
+back/src/main/resources/application.properties
+back/src/main/resources/generatorConfig.xml
+
+db/*
+.vscode/*
+.github/*
+back/src/main/resources/META-INF/additional-spring-configuration-metadata.json
+back/settings.gradle
+back/.gitignore
+back/src/main/resources/log4j2.xml
+front/tsconfig.node.json
