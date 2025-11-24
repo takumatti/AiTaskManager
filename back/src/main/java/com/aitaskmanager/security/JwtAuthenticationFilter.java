@@ -25,13 +25,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Autowired
     private CustomUserDetailsService userDetailsService;
 
-    @Override
     /** 
      * 各リクエストでJWTを検証し、認証情報を設定する
      * 
      * @param request HTTPリクエスト
      * @param response HTTPレスポンス
+     * @param chain フィルターチェーン
+     * @throws ServletException 例外
      */
+    @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
 
@@ -41,7 +43,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String username = null;
 
         if (header != null && header.startsWith("Bearer ")) {
-            token = header.substring(7); // "Bearer "の後ろ
+            token = header.substring(7);
             username = tokenProvider.getUsernameFromToken(token);
         }
 

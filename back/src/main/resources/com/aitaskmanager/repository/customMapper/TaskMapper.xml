@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aitaskmanager.repository.customMapper.TaskMapper">
+  <select id="selectByUserId" parameterType="java.lang.Integer" resultType="com.aitaskmanager.repository.model.Tasks">
+    select id, user_id, title, description, due_date, priority, status, created_at, updated_at
+    from tasks
+    where user_id = #{userId}
+  </select>
+  <insert id="insert" parameterType="com.aitaskmanager.repository.model.Tasks" useGeneratedKeys="true" keyProperty="id">
+    insert into tasks (user_id, title, description, due_date, priority, status, created_at, updated_at)
+    values (#{userId}, #{title}, #{description,jdbcType=VARCHAR}, #{dueDate}, #{priority}, 'TODO', now(), now())
+  </insert>
+</mapper>

@@ -4,10 +4,11 @@ import org.apache.ibatis.annotations.Mapper;
 
 import com.aitaskmanager.repository.model.Users;
 
-@Mapper
+
 /**
  * Usersテーブルに対するカスタムマッパー
  */
+@Mapper
 public interface UserMapper {
 
     /**

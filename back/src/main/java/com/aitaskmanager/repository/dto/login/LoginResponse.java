@@ -3,11 +3,11 @@ package com.aitaskmanager.repository.dto.login;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
-@Getter
-@AllArgsConstructor
 /**
  * ログインレスポンスDTO
  */
+@Getter
+@AllArgsConstructor
 public class LoginResponse {
     /** アクセストークン */
     private String accessToken;

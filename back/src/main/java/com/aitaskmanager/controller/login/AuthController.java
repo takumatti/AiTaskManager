@@ -18,14 +18,11 @@ import com.aitaskmanager.repository.dto.login.RefreshRequest;
 import com.aitaskmanager.security.JwtTokenProvider;
 import com.aitaskmanager.service.login.RefreshTokenService;
 
-import lombok.RequiredArgsConstructor;
-
-@RestController
-@RequestMapping("/api/auth")
-@RequiredArgsConstructor
 /**
  * 認証関連のコントローラクラス
  */
+@RestController
+@RequestMapping("/api/auth")
 public class AuthController {
     
     @Autowired
@@ -37,13 +34,13 @@ public class AuthController {
     @Autowired
     private RefreshTokenService refreshTokenService;
 
-    @PostMapping("/login")
     /**
      * ログインエンドポイント
      * 
      * @param request ログインリクエストDTO
      * @return ログインレスポンスDTO
      */
+     @PostMapping("/login")
     public LoginResponse login(@RequestBody LoginRequest request) {
 
         // Spring Security の認証処理

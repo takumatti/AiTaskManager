@@ -18,13 +18,13 @@ public class CustomUserDetailsService implements UserDetailsService {
     @Autowired
     private UserMapper userMapper;
 
-    @Override
     /**
      * ユーザー名からユーザー情報を取得してUserDetailsに変換
      * 
      * @param username ユーザー名
      * @return UserDetailsオブジェクト
      */
+    @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         Users user = userMapper.selectByUserName(username);
         if (user == null) {

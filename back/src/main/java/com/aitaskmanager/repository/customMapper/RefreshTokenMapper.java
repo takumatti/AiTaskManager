@@ -4,10 +4,11 @@ import org.apache.ibatis.annotations.Mapper;
 
 import com.aitaskmanager.repository.model.RefreshTokens;
 
-@Mapper
+
 /**
  * RefreshTokenテーブルに対するカスタムマッパー
  */
+@Mapper
 public interface RefreshTokenMapper {
 
     /**

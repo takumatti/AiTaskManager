@@ -3,6 +3,8 @@ package com.aitaskmanager.service.login;
 import java.util.Date;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,6 +14,9 @@ import com.aitaskmanager.repository.model.RefreshTokens;
 import com.aitaskmanager.repository.model.Users;
 import com.aitaskmanager.security.JwtTokenProvider;
 
+/**
+ * リフレッシュトークンに関連するビジネスロジックを提供するサービス
+ */
 @Service
 public class RefreshTokenService {
 
@@ -37,7 +42,7 @@ public class RefreshTokenService {
         Users user = userMapper.selectByUserName(username);
 
         if (user == null) {
-            throw new IllegalArgumentException("ユーザーが存在しません: " + username);
+            throw new UsernameNotFoundException("ユーザーが見つかりません");
         }
 
         // 古いトークン削除
@@ -61,7 +66,7 @@ public class RefreshTokenService {
     public String validateRefreshToken(String refreshToken) {
         // 1. JWTとして有効か確認
         if (!jwtTokenProvider.validateToken(refreshToken)) {
-            throw new IllegalArgumentException("リフレッシュトークンが不正または期限切れです");
+            throw new BadCredentialsException("リフレッシュトークンが不正または期限切れです");
         }
 
         String username = jwtTokenProvider.getUsernameFromToken(refreshToken);
@@ -69,24 +74,24 @@ public class RefreshTokenService {
         Users user = userMapper.selectByUserName(username);
 
         if (user == null) {
-            throw new IllegalArgumentException("トークンに紐づくユーザーが存在しません");
+            throw new UsernameNotFoundException("トークンに紐づくユーザーが存在しません");
         }
 
         // 2. DBに保存されたトークンを取得
         RefreshTokens savedToken = refreshTokenMapper.selectByUserId(user.getId());
 
         if (savedToken == null) {
-            throw new IllegalArgumentException("リフレッシュトークンが登録されていません");
+            throw new BadCredentialsException("リフレッシュトークンが登録されていません");
         }
 
         // 3. トークン一致チェック
         if (!savedToken.getToken().equals(refreshToken)) {
-            throw new IllegalArgumentException("リフレッシュトークンが一致しません");
+            throw new BadCredentialsException("リフレッシュトークンが一致しません");
         }
 
         // 4. 有効期限チェック（DB側）
         if (savedToken.getExpiresAt().before(new Date())) {
-            throw new IllegalArgumentException("リフレッシュトークンが期限切れです");
+            throw new BadCredentialsException("リフレッシュトークンが期限切れです");
         }
 
         return username;
@@ -103,7 +108,7 @@ public class RefreshTokenService {
         Users user = userMapper.selectByUserName(username);
 
         if (user == null) {
-            throw new IllegalArgumentException("ログアウト処理に失敗しました。ユーザーが存在しません。username=" + username);
+            throw new UsernameNotFoundException("ログアウト処理に失敗しました。ユーザーが存在しません。username=" + username);
         }
 
         refreshTokenMapper.deleteByUserId(user.getId());
