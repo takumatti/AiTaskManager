@@ -91,26 +91,6 @@ public class SecurityConfig {
         };
     }
 
-    
-    /**
-     * 文字エンコーディングフィルターのBean定義
-     * 
-     * @return FilterRegistrationBeanオブジェクト
-     */
-    @Bean
-    public FilterRegistrationBean<CharacterEncodingFilter> characterEncodingFilter() {
-        CharacterEncodingFilter filter = new CharacterEncodingFilter();
-        filter.setEncoding("UTF-8");
-        filter.setForceEncoding(true);
-
-        FilterRegistrationBean<CharacterEncodingFilter> reg = new FilterRegistrationBean<>();
-        reg.setFilter(filter);
-        reg.addUrlPatterns("/*");
-        reg.setOrder(Integer.MIN_VALUE); // できるだけ早く適用
-        return reg;
-    }
-
-
     /**
      * AuthenticationManagerのBean定義
      * 
