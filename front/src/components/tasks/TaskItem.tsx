@@ -18,11 +18,29 @@ const formatDate = (dateStr?: string) => {
   return dateStr;
 };
 
-export const TaskItem = ({ task }: { task: Task }) => {
+export const TaskItem = ({
+  task,
+  onDelete,
+}: {
+  task: Task;
+  onDelete: (id: number) => void;
+}) => {
   return (
     <div className="task-item-card">
-      <div className="task-item-title">{task.title}</div>
-      {task.description && <div className="task-item-desc">{task.description}</div>}
+      <div className="task-item-header">
+        <div className="task-item-title">{task.title}</div>
+        <button
+          className="task-delete-btn"
+          onClick={() => onDelete(task.id)}
+        >
+          削除
+        </button>
+      </div>
+
+      {task.description && (
+        <div className="task-item-desc">{task.description}</div>
+      )}
+
       <div className="task-meta">
         <span>期限: {formatDate(task.due_date)}</span>
         <span>優先度: {task.priority}</span>

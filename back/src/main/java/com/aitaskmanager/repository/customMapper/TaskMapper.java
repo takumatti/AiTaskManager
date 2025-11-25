@@ -21,11 +21,27 @@ public interface TaskMapper {
     List<Tasks> selectByUserId(Integer userId);
 
     /**
+     * タスクIDに基づいてタスクを選択する
+     * 
+     * @param taskId タスクID
+     * @return タスクオブジェクト
+     */
+    Tasks selectById(Integer taskId);
+
+    /**
      * タスクを挿入する
      * 
      * @param task タスクオブジェクト
      * @return 挿入された行数
      */
     int insert(Tasks task);
+
+    /**
+     * タスクを削除する
+     * 
+     * @param taskId タスクID
+     * @return 削除された行数
+     */
+    int delete(Integer taskId);
 
 }

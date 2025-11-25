@@ -1,4 +1,3 @@
-
 // --- ユーティリティ（モジュールスコープに配置） ---
 // ISO 8601（例: "2025-11-24T09:15:00+00:00"）をミリ秒に変換
 const parseIsoToEpoch = (s?: string | null): number => {
@@ -25,7 +24,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/authContext";
 import { useNavigate } from "react-router-dom";
 import type { Task } from "../types/task";
-import { fetchTasks } from "../api/taskApi";
+import { fetchTasks, deleteTask } from "../api/taskApi";
 import { TaskList } from "../components/tasks/TaskList";
 import { TaskFilters } from "../components/tasks/TaskFilters";
 import { TaskSort } from "../components/tasks/TaskSort";
@@ -57,14 +56,14 @@ const Dashboard = () => {
 
   // フィルタ＆ソート
   const filteredTasks = useMemo(() => {
-    // --- フィルタ ---
+    // フィルタ
     const list = allTasks.filter((t) => {
       if (status && t.status !== status) return false;
       if (priority && t.priority !== priority) return false;
       return true;
     });
 
-    // --- ソート ---
+    // ソート
     list.sort((a, b) => {
       const dueA = parseIsoToEpoch(a?.due_date);
       const dueB = parseIsoToEpoch(b?.due_date);
@@ -95,6 +94,17 @@ const Dashboard = () => {
 
     return list;
   }, [status, priority, sort, allTasks]);
+
+  // タスク削除ハンドラ
+  const handleDelete = async (taskId: number) => {
+  try {
+    await deleteTask(taskId); // ← API 呼び出し
+    const tasks = await fetchTasks(); // ← 最新の一覧を取得
+    setAllTasks(tasks); // ← state 更新
+  } catch (e) {
+    console.error("削除エラー:", e);
+  }
+};
 
   return (
     <div className="dashboard-container">
@@ -146,7 +156,7 @@ const Dashboard = () => {
             </div>
           </div>
         </div>
-        <TaskList tasks={filteredTasks} />
+        <TaskList tasks={filteredTasks} onDelete={handleDelete} />
         {showCreate && (
           <TaskCreateForm
             onCreated={async () => {

@@ -7,7 +7,9 @@ import java.text.SimpleDateFormat;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -63,12 +65,21 @@ public class TaskController {
      * @return 作成されたタスク
      */
     @PostMapping
-    public Tasks createTask(
-        @RequestBody TaskRequest req,
-        Authentication authentication
-    ) {
+    public Tasks createTask(@RequestBody TaskRequest req, Authentication authentication) {
         String username = authentication.getName();
         return taskService.createTask(username, req);
+    }
+
+    /**
+     * タスクを削除するエンドポイント
+     * 
+     * @param id タスクID
+     * @param authentication 認証情報
+     */
+    @DeleteMapping("/{id}")
+    public void deleteTask(@PathVariable int id, Authentication authentication) {
+        String username = authentication.getName();
+        taskService.deleteTask(id, username);
     }
 
 }

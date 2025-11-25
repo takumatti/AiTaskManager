@@ -40,6 +40,26 @@
   color: #718096;
 }
 
+.task-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.task-delete-btn {
+  padding: 4px 8px;
+  background: #ff4d4f;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.task-delete-btn:hover {
+  background: #d9363e;
+}
+
+
 @media (max-width: 600px) {
   .task-item-card {
     padding: 12px 6px 10px 6px;

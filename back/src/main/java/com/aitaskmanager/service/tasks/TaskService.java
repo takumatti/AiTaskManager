@@ -72,4 +72,30 @@ public class TaskService {
         return task;
     }
 
+    /**
+     * タスクを削除する
+     * 
+     * @param taskId タスクID
+     * @param username ユーザー名
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteTask(int taskId, String username) {
+
+        Users user = userMapper.selectByUserName(username);
+        if (user == null) {
+            throw new RuntimeException("ユーザーが存在しません: " + username);
+        }
+
+        Tasks task = taskMapper.selectById(taskId);
+        if (task == null) {
+            throw new RuntimeException("タスクが存在しません: id=" + taskId);
+        }
+
+        // 自分のタスク以外を消せないようにガード
+        if (!task.getUserId().equals(user.getId())) {
+            throw new RuntimeException("このタスクを削除する権限がありません");
+        }
+
+        taskMapper.delete(taskId);
+    }
 }
