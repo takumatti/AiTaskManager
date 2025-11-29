@@ -11,14 +11,17 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import jakarta.validation.Valid;
 
 import com.aitaskmanager.repository.dto.login.LoginRequest;
 import com.aitaskmanager.repository.dto.login.LoginResponse;
 import com.aitaskmanager.repository.dto.login.RefreshRequest;
+import com.aitaskmanager.repository.dto.login.RegisterRequest;
 import com.aitaskmanager.security.JwtTokenProvider;
 import com.aitaskmanager.repository.customMapper.UserMapper;
 import com.aitaskmanager.repository.model.Users;
 import com.aitaskmanager.service.login.RefreshTokenService;
+import com.aitaskmanager.service.login.RegistrationService;
 
 /**
  * 認証関連のコントローラクラス
@@ -38,6 +41,9 @@ public class AuthController {
 
     @Autowired
     private UserMapper userMapper;
+
+    @Autowired
+    private RegistrationService registrationService;
 
     /**
      * ログインエンドポイント
@@ -93,6 +99,17 @@ public class AuthController {
     );
         
     return new LoginResponse(accessToken, refreshToken, uid);
+    }
+
+    /**
+     * 新規登録エンドポイント
+     * 
+     * @param request RegisterRequest
+     * @return LoginResponse（登録後すぐログイン扱い）
+     */
+    @PostMapping("/register")
+    public LoginResponse register(@Valid @RequestBody RegisterRequest request) {
+        return registrationService.register(request);
     }
 
     /**

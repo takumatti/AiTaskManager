@@ -24,4 +24,9 @@
     from users
     where lower(email) = lower(#{email})
   </select>
+  
+  <insert id="insertUser" parameterType="com.aitaskmanager.repository.model.Users">
+    INSERT INTO users (username, email, password, role, plan_id, is_active)
+    VALUES (#{username}, #{email}, #{password}, #{role}, #{planId}, #{isActive})
+  </insert>
 </mapper>

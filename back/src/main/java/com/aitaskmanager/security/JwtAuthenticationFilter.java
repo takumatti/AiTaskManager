@@ -12,6 +12,10 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.MalformedJwtException;
+import io.jsonwebtoken.security.SecurityException;
+import io.jsonwebtoken.UnsupportedJwtException;
 
 /**
  * 各HTTPリクエストのヘッダーにあるJWTを検証するフィルター
@@ -45,8 +49,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         if (header != null && header.startsWith("Bearer ")) {
             token = header.substring(7);
-            username = tokenProvider.getUsernameFromToken(token);
-            userId = tokenProvider.getUserIdFromToken(token);
+            try {
+                username = tokenProvider.getUsernameFromToken(token);
+                userId = tokenProvider.getUserIdFromToken(token);
+            } catch (ExpiredJwtException e) {
+                // 有効期限切れのトークンは401を返して終了（フロントが自動ログアウト）
+                response.setContentType("application/json; charset=UTF-8");
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.getWriter().write("{\"message\":\"トークンの有効期限が切れています\"}");
+                return;
+            } catch (UnsupportedJwtException | MalformedJwtException | SecurityException | IllegalArgumentException e) {
+                // 不正なトークンは認証なしで後段へ（permitAllのパスは通る、保護パスは401へ）
+                username = null;
+                userId = null;
+            }
         }
 
         // トークンが有効で、認証されていない場合のみ認証処理を行う
@@ -69,5 +85,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         chain.doFilter(request, response);
+    }
+
+    /**
+     * /api/auth/** 配下は認証不要のためフィルターをスキップ
+     */
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
+        String path = request.getServletPath();
+        return path != null && path.startsWith("/api/auth/");
     }
 }

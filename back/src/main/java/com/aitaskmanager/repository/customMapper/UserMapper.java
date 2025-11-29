@@ -39,4 +39,10 @@ public interface UserMapper {
      */
     Integer selectIdByEmail(String email);
 
+    /**
+     * 新規ユーザ登録
+     * @param user Users
+     */
+    void insertUser(Users user);
+
 }
