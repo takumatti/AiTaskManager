@@ -31,6 +31,40 @@
   margin-bottom: 24px;
 }
 
+/* タイトル右横配置用 */
+/* タイトル中央、アクション右上配置 */
+.header-row {
+  position: relative;
+  flex-direction: column; /* タイトルを中央に単独表示 */
+  align-items: center;
+  justify-content: center;
+  padding-top: 8px;
+}
+
+.dashboard-title {
+  width: 100%;
+  text-align: center;
+}
+
+.dashboard-actions-top-right {
+  position: absolute;
+  top: 4px;
+  right: 0;
+  display: flex;
+  gap: 8px;
+}
+
+@media (max-width: 600px) {
+  .dashboard-actions-top-right {
+    top: 0;
+    right: 0;
+    gap: 4px;
+  }
+  .dashboard-title {
+    font-size: 1.4rem;
+  }
+}
+
 .dashboard-title {
   font-size: 2rem;
   font-weight: 700;
@@ -43,6 +77,9 @@
   gap: 16px;
   margin-bottom: 16px;
 }
+
+/* 固定ログアウトボタン */
+/* 固定ボタン削除済み */
 
 /* Stats bar */
 .dashboard-stats {

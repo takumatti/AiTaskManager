@@ -214,29 +214,23 @@ const Dashboard = () => {
   return (
     <div className="dashboard-container">
       <div className="dashboard-card">
-        <div className="dashboard-header">
+        <div className="dashboard-header header-row">
           <div className="dashboard-title">タスク一覧</div>
-
-          <div className="dashboard-actions">
+          <div className="dashboard-actions-top-right">
             <button
               className="btn btn-primary"
               onClick={() => {
                 setEditingTask(null);
                 setShowForm(true);
               }}
-            >
-              新規タスク
-            </button>
-
+            >新規</button>
             <button
               className="btn btn-outline-secondary"
               onClick={async () => {
                 await logout();
                 navigate("/login");
               }}
-            >
-              ログアウト
-            </button>
+            >ログアウト</button>
           </div>
         </div>
 

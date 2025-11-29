@@ -7,7 +7,7 @@ import lombok.Data;
  */
 @Data
 public class LoginRequest {
-    /** ユーザー名 */
+    /** ログインID (ユーザー名 または メールアドレス) */
     private String username;
     /** パスワード */
     private String password;

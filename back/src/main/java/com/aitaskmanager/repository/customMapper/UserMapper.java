@@ -25,4 +25,18 @@ public interface UserMapper {
      */
     Integer selectIdByUsername(String username);
 
+    /**
+     * メールアドレスでユーザ取得
+     * @param email メール
+     * @return ユーザ情報
+     */
+    Users selectByEmail(String email);
+
+    /**
+     * メールアドレスでユーザID取得
+     * @param email メール
+     * @return ユーザID
+     */
+    Integer selectIdByEmail(String email);
+
 }

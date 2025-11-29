@@ -48,35 +48,51 @@ public class AuthController {
      @PostMapping("/login")
     public LoginResponse login(@RequestBody LoginRequest request) {
 
-        // Spring Security の認証処理
+        String rawId = request.getUsername(); // username 兼 email
+        boolean isEmail = rawId != null && rawId.contains("@");
+
+        // emailなら対応するusernameへ解決
+        String resolvedUsername = rawId;
+        Users user = null;
+        if (isEmail) {
+            user = userMapper.selectByEmail(rawId);
+            if (user == null) {
+                throw new org.springframework.security.authentication.BadCredentialsException("メールまたはパスワードが不正です");
+            }
+            resolvedUsername = user.getUsername();
+        }
+
+        // Spring Security の認証処理（UserDetailsServiceはusernameでロードされる前提）
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
-                        request.getUsername(),
+                        resolvedUsername,
                         request.getPassword()
                 )
         );
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        // ユーザーID取得（ログイン時のみ1回）
-        Users user = userMapper.selectByUserName(request.getUsername());
+        // ユーザーID取得（username で再取得。emailログイン時は既に user がある）
+        if (user == null) {
+            user = userMapper.selectByUserName(resolvedUsername);
+        }
         Integer uid = user != null ? user.getId() : null;
 
         // JWT生成（uidをクレームに含める）
-        String accessToken = jwtTokenProvider.generateAccessToken(request.getUsername(), uid);
-        String refreshToken = jwtTokenProvider.generateRefreshToken(request.getUsername(), uid);
+        String accessToken = jwtTokenProvider.generateAccessToken(resolvedUsername, uid);
+        String refreshToken = jwtTokenProvider.generateRefreshToken(resolvedUsername, uid);
 
         // RefreshToken の有効期限取得
         Date refreshTokenExpireAt = jwtTokenProvider.getRefreshTokenExpiryDate();
 
         // DB に保存（過去のトークンを削除し、新しいトークンを保存）
-        refreshTokenService.saveRefreshToken(
-                request.getUsername(),
-                refreshToken,
-                refreshTokenExpireAt
-        );
+    refreshTokenService.saveRefreshToken(
+        resolvedUsername,
+        refreshToken,
+        refreshTokenExpireAt
+    );
         
-        return new LoginResponse(accessToken, refreshToken, uid);
+    return new LoginResponse(accessToken, refreshToken, uid);
     }
 
     /**

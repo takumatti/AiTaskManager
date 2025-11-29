@@ -50,7 +50,7 @@ export default function LoginPage() {
               </div>
               <form onSubmit={handleLogin}>
                 <div className="mb-3">
-                  <label className="form-label">ユーザー名</label>
+                  <label className="form-label">ユーザー名 / メールアドレス</label>
                   <input
                     type="text"
                     className="form-control form-control-lg"

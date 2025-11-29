@@ -7,9 +7,21 @@
     where username = #{username}
   </select>
   
+  <select id="selectByEmail" parameterType="java.lang.String" resultType="com.aitaskmanager.repository.model.Users">
+    select id, username, email, password, role, plan_id, is_active, created_at, updated_at
+    from users
+    where lower(email) = lower(#{email})
+  </select>
+  
   <select id="selectIdByUsername" parameterType="java.lang.String" resultType="java.lang.Integer">
     select id
     from users
     where username = #{username}
+  </select>
+  
+  <select id="selectIdByEmail" parameterType="java.lang.String" resultType="java.lang.Integer">
+    select id
+    from users
+    where lower(email) = lower(#{email})
   </select>
 </mapper>
