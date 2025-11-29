@@ -2,6 +2,7 @@ export interface AuthState {
   accessToken: string | null;
   refreshToken: string | null;
   username?: string;
+  userId?: number;
 }
 
 export interface AuthContextProps {

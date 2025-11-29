@@ -21,8 +21,8 @@ export default function LoginPage() {
         username,
         password,
       });
-      const { accessToken, refreshToken } = response.data;
-      setAuth({ accessToken, refreshToken, username });
+      const { accessToken, refreshToken, userId } = response.data as { accessToken: string; refreshToken: string; userId?: number };
+      setAuth({ accessToken, refreshToken, username, userId });
       navigate("/dashboard");
     } catch (error: unknown) {
       let message = "ユーザー名またはパスワードが違います";

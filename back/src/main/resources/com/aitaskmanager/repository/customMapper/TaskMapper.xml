@@ -19,7 +19,7 @@
     where user_id = #{userId}
   </select>
 
-  <select id="selectByTaskIdAndUserName" parameterType="java.lang.Integer" resultMap="BaseResultMap">
+  <select id="selectByTaskIdAndUserId" resultMap="BaseResultMap">
     select id, user_id, title, description, due_date, priority, status, created_at, updated_at
     from tasks
     where id = #{taskId}
@@ -40,7 +40,7 @@
       priority = #{priority},
       due_date = #{dueDate},
       updated_at = now()
-    where id = #{id}
+    where id = #{id} and user_id = #{userId}
   </update>  
 
   <delete id="deleteByIdAndUserId">

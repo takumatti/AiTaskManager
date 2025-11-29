@@ -16,6 +16,8 @@ import com.aitaskmanager.repository.dto.login.LoginRequest;
 import com.aitaskmanager.repository.dto.login.LoginResponse;
 import com.aitaskmanager.repository.dto.login.RefreshRequest;
 import com.aitaskmanager.security.JwtTokenProvider;
+import com.aitaskmanager.repository.customMapper.UserMapper;
+import com.aitaskmanager.repository.model.Users;
 import com.aitaskmanager.service.login.RefreshTokenService;
 
 /**
@@ -33,6 +35,9 @@ public class AuthController {
 
     @Autowired
     private RefreshTokenService refreshTokenService;
+
+    @Autowired
+    private UserMapper userMapper;
 
     /**
      * ログインエンドポイント
@@ -53,9 +58,13 @@ public class AuthController {
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        // JWT生成
-        String accessToken = jwtTokenProvider.generateAccessToken(request.getUsername());
-        String refreshToken = jwtTokenProvider.generateRefreshToken(request.getUsername());
+        // ユーザーID取得（ログイン時のみ1回）
+        Users user = userMapper.selectByUserName(request.getUsername());
+        Integer uid = user != null ? user.getId() : null;
+
+        // JWT生成（uidをクレームに含める）
+        String accessToken = jwtTokenProvider.generateAccessToken(request.getUsername(), uid);
+        String refreshToken = jwtTokenProvider.generateRefreshToken(request.getUsername(), uid);
 
         // RefreshToken の有効期限取得
         Date refreshTokenExpireAt = jwtTokenProvider.getRefreshTokenExpiryDate();
@@ -67,7 +76,7 @@ public class AuthController {
                 refreshTokenExpireAt
         );
         
-        return new LoginResponse(accessToken, refreshToken);
+        return new LoginResponse(accessToken, refreshToken, uid);
     }
 
     /**
@@ -81,10 +90,11 @@ public class AuthController {
         
         // DB & JWT の検証
         String username = refreshTokenService.validateRefreshToken(request.getRefreshToken());
+        Integer uid = jwtTokenProvider.getUserIdFromToken(request.getRefreshToken());
 
         // 新トークン発行
-        String newAccessToken = jwtTokenProvider.generateAccessToken(username);
-        String newRefreshToken = jwtTokenProvider.generateRefreshToken(username);
+        String newAccessToken = jwtTokenProvider.generateAccessToken(username, uid);
+        String newRefreshToken = jwtTokenProvider.generateRefreshToken(username, uid);
 
         // RefreshToken の有効期限取得
         Date refreshTokenExpireAt = jwtTokenProvider.getRefreshTokenExpiryDate();
@@ -92,11 +102,13 @@ public class AuthController {
         // DB に保存（過去のトークンを削除し、新しいトークンを保存）
         refreshTokenService.saveRefreshToken(username, newRefreshToken, refreshTokenExpireAt);
 
-        return new LoginResponse(newAccessToken, newRefreshToken);
+        return new LoginResponse(newAccessToken, newRefreshToken, uid);
     }
 
     /**
      * ログアウトエンドポイント 
+     * 
+     * @param request リフレッシュリクエストDTO
      */
     @PostMapping("/logout")
     public void logout(@RequestBody RefreshRequest request) {

@@ -1,6 +1,8 @@
 package com.aitaskmanager.service.login;
 
 import java.util.Date;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -48,10 +50,10 @@ public class RefreshTokenService {
         // 古いトークン削除
         refreshTokenMapper.deleteByUserId(user.getId());
 
-        // 新しいトークン保存
+        // 新しいトークン保存（ハッシュ化）
         RefreshTokens refreshToken = new RefreshTokens();
         refreshToken.setUserId(user.getId());
-        refreshToken.setToken(token);
+        refreshToken.setToken(hashToken(token));
         refreshToken.setExpiresAt(expiresAt);
 
         refreshTokenMapper.insert(refreshToken);
@@ -84,8 +86,8 @@ public class RefreshTokenService {
             throw new BadCredentialsException("リフレッシュトークンが登録されていません");
         }
 
-        // 3. トークン一致チェック
-        if (!savedToken.getToken().equals(refreshToken)) {
+        // 3. トークン一致チェック（ハッシュ比較）
+        if (!savedToken.getToken().equals(hashToken(refreshToken))) {
             throw new BadCredentialsException("リフレッシュトークンが一致しません");
         }
 
@@ -112,6 +114,26 @@ public class RefreshTokenService {
         }
 
         refreshTokenMapper.deleteByUserId(user.getId());
+    }
+
+    /**
+     * トークンハッシュ（SHA-256）を生成する
+     * 
+     * @param token 平文トークン
+     * @return 16進文字列ハッシュ
+     */
+    private String hashToken(String token) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hashed = digest.digest(token.getBytes());
+            StringBuilder sb = new StringBuilder();
+            for (byte b : hashed) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("ハッシュアルゴリズムが利用不可です", e);
+        }
     }
 
 }

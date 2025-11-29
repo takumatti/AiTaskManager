@@ -37,39 +37,45 @@ public class JwtTokenProvider {
     }
 
     /**
-     * アクセストークンを生成
+     * アクセストークンを生成（ユーザーIDをクレームに含める）
      * 
      * @param username ユーザー名
+     * @param userId ユーザーID
      * @return 生成されたアクセストークン
      */
-    public String generateAccessToken(String username) {
+    public String generateAccessToken(String username, Integer userId) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + accessTokenExpiration);
 
-        return Jwts.builder()
+        JwtBuilder builder = Jwts.builder()
                 .setSubject(username)
                 .setIssuedAt(now)
                 .setExpiration(expiryDate)
-                .signWith(getSigningKey(), SignatureAlgorithm.HS512)
-                .compact();
+                .signWith(getSigningKey(), SignatureAlgorithm.HS512);
+        if (userId != null) builder.claim("uid", userId);
+
+        return builder.compact();
     }
 
     /**
-     * リフレッシュトークンを生成
+     * リフレッシュトークンを生成（ユーザーIDをクレームに含める）
      * 
      * @param username ユーザー名
+     * @param userId ユーザーID 
      * @return 生成されたリフレッシュトークン
      */
-    public String generateRefreshToken(String username) {
+    public String generateRefreshToken(String username, Integer userId) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + refreshTokenExpiration);
 
-        return Jwts.builder()
+        JwtBuilder builder = Jwts.builder()
                 .setSubject(username)
                 .setIssuedAt(now)
                 .setExpiration(expiryDate)
-                .signWith(getSigningKey(), SignatureAlgorithm.HS512)
-                .compact();
+                .signWith(getSigningKey(), SignatureAlgorithm.HS512);
+        if (userId != null) builder.claim("uid", userId);
+
+        return builder.compact();
     }
 
     /**
@@ -95,6 +101,23 @@ public class JwtTokenProvider {
                 .getBody();
 
         return claims.getSubject();
+    }
+
+    /**
+     * トークンからユーザーIDを取得（uidクレーム）
+     */
+    public Integer getUserIdFromToken(String token) {
+        Claims claims = Jwts.parserBuilder()
+                .setSigningKey(getSigningKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+        Object uid = claims.get("uid");
+        if (uid instanceof Integer) return (Integer) uid;
+        if (uid instanceof Long) return ((Long) uid).intValue();
+        if (uid instanceof Number) return ((Number) uid).intValue();
+        
+        return null;
     }
 
     /**

@@ -13,4 +13,6 @@ public class LoginResponse {
     private String accessToken;
     /** リフレッシュトークン */
     private String refreshToken;
+    /** ログインユーザーID */
+    private Integer userId;
 }

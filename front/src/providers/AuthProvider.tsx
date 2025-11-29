@@ -18,16 +18,18 @@ import { AxiosError } from "axios";
 interface Props { children: ReactNode }
 
 export const AuthProvider = ({ children }: Props) => {
-  const [auth, setAuthState] = useState<AuthState>({ accessToken: null, refreshToken: null, username: undefined });
+  const [auth, setAuthState] = useState<AuthState>({ accessToken: null, refreshToken: null, username: undefined, userId: undefined });
   const [error, setError] = useState("");
 
   useEffect(() => {
     const accessToken = localStorage.getItem("accessToken");
     const refreshToken = localStorage.getItem("refreshToken");
     const username = localStorage.getItem("username") || undefined;
+    const userIdStr = localStorage.getItem("userId");
+    const userId = userIdStr ? Number(userIdStr) : undefined;
 
     if (accessToken && refreshToken) {
-      setTimeout(() => setAuthState({ accessToken, refreshToken, username }), 0);
+      setTimeout(() => setAuthState({ accessToken, refreshToken, username, userId }), 0);
     }
   }, []);
 
@@ -37,6 +39,8 @@ export const AuthProvider = ({ children }: Props) => {
     else clearTokens();
     if (newAuth.username) localStorage.setItem("username", newAuth.username);
     else localStorage.removeItem("username");
+    if (typeof newAuth.userId === "number") localStorage.setItem("userId", String(newAuth.userId));
+    else localStorage.removeItem("userId");
   };
 
   // リフレッシュトークンAPI呼び出し
@@ -46,8 +50,8 @@ export const AuthProvider = ({ children }: Props) => {
       const refreshToken = localStorage.getItem("refreshToken");
       if (!refreshToken) throw new Error("リフレッシュトークンがありません");
       const res = await apiClient.post("/api/auth/refresh", { refreshToken });
-      const { accessToken, refreshToken: newRefreshToken } = res.data;
-      setAuth({ ...auth, accessToken, refreshToken: newRefreshToken });
+      const { accessToken, refreshToken: newRefreshToken, userId } = res.data;
+      setAuth({ ...auth, accessToken, refreshToken: newRefreshToken, userId });
     } catch (err: unknown) {
       if (isAxiosError(err) && err.response?.data?.message) {
         setError(err.response.data.message);

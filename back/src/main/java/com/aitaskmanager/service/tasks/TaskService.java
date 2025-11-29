@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.aitaskmanager.util.SecurityUtils;
 
 import com.aitaskmanager.repository.customMapper.TaskMapper;
 import com.aitaskmanager.repository.customMapper.UserMapper;
@@ -14,11 +15,13 @@ import com.aitaskmanager.repository.dto.login.tasks.TaskRequest;
 import com.aitaskmanager.repository.model.Tasks;
 import com.aitaskmanager.repository.model.Users;
 import com.aitaskmanager.util.TaskUtils;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * タスクに関連するビジネスロジックを提供するサービス
  */
 @Service
+@Slf4j
 public class TaskService {
     
     @Autowired
@@ -34,14 +37,16 @@ public class TaskService {
      * @return タスクのリスト
      */
     public List<Tasks> getTasksByUsername(String username) {
-
-        Users user = userMapper.selectByUserName(username);
-
-        if (user == null) {
-            throw new RuntimeException("ユーザーが存在しません: " + username);
+        Integer userId = SecurityUtils.getCurrentUserId();
+        if (userId == null) {
+            log.info("[TaskService] userId not found in request attributes. Fallback DB lookup username={}", username);
+            Users user = userMapper.selectByUserName(username);
+            if (user == null) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "ユーザーが存在しません");
+            }
+            userId = user.getId();
         }
-
-        return taskMapper.selectByUserId(user.getId());
+        return taskMapper.selectByUserId(userId);
     }
 
     /**
@@ -54,13 +59,18 @@ public class TaskService {
     @Transactional(rollbackFor = Exception.class)
     public Tasks createTask(String username, TaskRequest request) {
 
-        Users user = userMapper.selectByUserName(username);
-        if (user == null) {
-            throw new RuntimeException("ユーザーが存在しません");
+        Integer userId = SecurityUtils.getCurrentUserId();
+        if (userId == null) {
+            log.info("[TaskService] createTask fallback userId lookup username={}", username);
+            Users user = userMapper.selectByUserName(username);
+            if (user == null) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "ユーザーが存在しません");
+            }
+            userId = user.getId();
         }
 
         Tasks task = new Tasks();
-        task.setUserId(user.getId());
+        task.setUserId(userId);
         task.setTitle(TaskUtils.defaultString(request.getTitle(), ""));
         task.setDescription(TaskUtils.defaultString(request.getDescription(), ""));
         task.setPriority(TaskUtils.normalizePriority(request.getPriority()));
@@ -81,12 +91,17 @@ public class TaskService {
     @Transactional(rollbackFor = Exception.class)
     public Tasks updateTask(int taskId, TaskRequest request, String username) {
 
-        Integer userId = userMapper.selectIdByUsername(username);
+        Integer userId = SecurityUtils.getCurrentUserId();
+        if (userId == null) {
+            log.info("[TaskService] updateTask fallback userId lookup username={}", username);
+            userId = userMapper.selectIdByUsername(username);
+        }
         if (userId == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "ユーザーが存在しません");
         }
 
         Tasks task = new Tasks();
+        task.setId(taskId);
         task.setUserId(userId);
         task.setTitle(TaskUtils.defaultString(request.getTitle(), ""));
         task.setDescription(TaskUtils.defaultString(request.getDescription(), ""));
@@ -116,7 +131,11 @@ public class TaskService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteTask(int taskId, String username) {
 
-        Integer userId = userMapper.selectIdByUsername(username);
+        Integer userId = SecurityUtils.getCurrentUserId();
+        if (userId == null) {
+            log.info("[TaskService] deleteTask fallback userId lookup username={}", username);
+            userId = userMapper.selectIdByUsername(username);
+        }
         if (userId == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "ユーザーが存在しません");
         }

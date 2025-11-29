@@ -41,10 +41,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String header = request.getHeader("Authorization");
         String token = null;
         String username = null;
+        Integer userId = null;
 
         if (header != null && header.startsWith("Bearer ")) {
             token = header.substring(7);
             username = tokenProvider.getUsernameFromToken(token);
+            userId = tokenProvider.getUserIdFromToken(token);
         }
 
         // トークンが有効で、認証されていない場合のみ認証処理を行う
@@ -58,6 +60,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 // SecurityContextに認証情報をセット
                 SecurityContextHolder.getContext().setAuthentication(auth);
+
+                // userId をリクエスト属性にセット（後段で取り出し可能）
+                if (userId != null) {
+                    request.setAttribute("X-User-Id", userId);
+                }
             }
         }
 
