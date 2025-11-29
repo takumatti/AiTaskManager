@@ -66,5 +66,5 @@ back/.gitignore
 back/src/main/resources/log4j2.xml
 front/tsconfig.node.json
 back/logs/application.log
+back/logs/*
 logs/*
-back/logs/log-2025-11-24.log

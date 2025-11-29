@@ -16,6 +16,7 @@ export interface Task {
 export interface TaskInput {
   title: string;
   description?: string;
+  status: string;
   due_date?: string;
   priority?: string;
 }

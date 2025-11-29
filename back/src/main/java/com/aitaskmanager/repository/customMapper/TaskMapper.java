@@ -3,6 +3,7 @@ package com.aitaskmanager.repository.customMapper;
 import java.util.List;
 
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 import com.aitaskmanager.repository.model.Tasks;
 
@@ -21,12 +22,14 @@ public interface TaskMapper {
     List<Tasks> selectByUserId(Integer userId);
 
     /**
-     * タスクIDに基づいてタスクを選択する
+     * タスクIDとユーザーIDに基づいてタスクを選択する
      * 
      * @param taskId タスクID
+     * @param userId ユーザーID
      * @return タスクオブジェクト
      */
-    Tasks selectById(Integer taskId);
+    Tasks selectByTaskIdAndUserId(@Param("taskId") Integer taskId, 
+                                  @Param("userId")Integer userId);
 
     /**
      * タスクを挿入する
@@ -37,11 +40,20 @@ public interface TaskMapper {
     int insert(Tasks task);
 
     /**
-     * タスクを削除する
+     * タスクを更新する
      * 
-     * @param taskId タスクID
+     * @param task タスクオブジェクト
+     * @return 更新された行数
+     */
+    int update(Tasks task);
+
+    /**
+     * タスクIDとユーザーIDに基づいてタスクを削除する
+     * 
+     * @param id タスクID
+     * @param userId ユーザーID
      * @return 削除された行数
      */
-    int delete(Integer taskId);
-
+    int deleteByIdAndUserId(@Param("id") Integer id, 
+                            @Param("userId") Integer userId);
 }

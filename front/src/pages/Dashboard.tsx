@@ -1,4 +1,4 @@
-// --- ユーティリティ（モジュールスコープに配置） ---
+// ユーティリティ（モジュールスコープに配置）
 // ISO 8601（例: "2025-11-24T09:15:00+00:00"）をミリ秒に変換
 const parseIsoToEpoch = (s?: string | null): number => {
   if (!s) return NaN;
@@ -11,35 +11,44 @@ const compareEpochAsc = (a: number, b: number): number => {
   const aNaN = Number.isNaN(a);
   const bNaN = Number.isNaN(b);
   if (aNaN && bNaN) return 0;
-  if (aNaN) return 1;  // a 不明 → 後ろへ
+  if (aNaN) return 1; // a 不明 → 後ろへ
   if (bNaN) return -1; // b 不明 → 後ろへ
   return a - b;
 };
 
 // 降順（大きいほど前）
-const compareEpochDesc = (a: number, b: number): number => compareEpochAsc(b, a);
+const compareEpochDesc = (a: number, b: number): number =>
+  compareEpochAsc(b, a);
 
-// --- コンポーネント ---
+// コンポーネント本体
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/authContext";
 import { useNavigate } from "react-router-dom";
-import type { Task } from "../types/task";
-import { fetchTasks, deleteTask } from "../api/taskApi";
+// 型定義、API、コンポーネント
+import type { Task, TaskInput } from "../types/task";
+import { fetchTasks, deleteTask, updateTask, createTask } from "../api/taskApi";
 import { TaskList } from "../components/tasks/TaskList";
 import { TaskFilters } from "../components/tasks/TaskFilters";
 import { TaskSort } from "../components/tasks/TaskSort";
 import { TaskCreateForm } from "../components/tasks/TaskCreateForm";
+// スタイル
 import "./Dashboard.css";
 import "./DashboardFilters.css";
 
+// ダッシュボードコンポーネント
 const Dashboard = () => {
+  // 認証コンテキスト、ナビゲーション
   const { logout } = useAuth();
   const navigate = useNavigate();
+  // 状態管理
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [status, setStatus] = useState("");
   const [priority, setPriority] = useState("");
   const [sort, setSort] = useState("due_date_asc");
-  const [showCreate, setShowCreate] = useState(false);
+  // 編集中タスク
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  // モーダル表示
+  const [showForm, setShowForm] = useState(false);
 
   // タスク一覧取得
   useEffect(() => {
@@ -95,26 +104,66 @@ const Dashboard = () => {
     return list;
   }, [status, priority, sort, allTasks]);
 
+  // 編集開始
+  const handleEdit = (task: Task) => {
+    setEditingTask(task);
+    setShowForm(true);
+  } 
+
+  // タスク更新ハンドラ
+  const handleUpdate = async (id: number, input: TaskInput) => {
+    try {
+      await updateTask(id, input);
+      const tasks = await fetchTasks();
+      setAllTasks(tasks);
+      setShowForm(false);
+      setEditingTask(null);
+    } catch (error) {
+      console.error("更新エラー:", error);
+    }
+  };
+
+  // タスク作成ハンドラ
+  const handleCreated = async (input: TaskInput) => {
+    try {
+      await createTask(input);
+      const tasks = await fetchTasks();
+      setAllTasks(tasks);
+      setShowForm(false);
+      setEditingTask(null);
+    } catch (error) {
+      console.error("作成エラー:", error);
+    }
+  };
+
   // タスク削除ハンドラ
   const handleDelete = async (taskId: number) => {
-  try {
-    await deleteTask(taskId); // ← API 呼び出し
-    const tasks = await fetchTasks(); // ← 最新の一覧を取得
-    setAllTasks(tasks); // ← state 更新
-  } catch (e) {
-    console.error("削除エラー:", e);
-  }
-};
+    try {
+      await deleteTask(taskId);
+      const tasks = await fetchTasks();
+      setAllTasks(tasks);
+    } catch (e) {
+      console.error("削除エラー:", e);
+    }
+  };
 
   return (
     <div className="dashboard-container">
       <div className="dashboard-card">
         <div className="dashboard-header">
           <div className="dashboard-title">タスク一覧</div>
+
           <div className="dashboard-actions">
-            <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                setEditingTask(null);
+                setShowForm(true);
+              }}
+            >
               新規タスク
             </button>
+
             <button
               className="btn btn-outline-secondary"
               onClick={async () => {
@@ -126,6 +175,8 @@ const Dashboard = () => {
             </button>
           </div>
         </div>
+
+        {/* フィルタ */}
         <div className="dashboard-filters-card">
           <div className="dashboard-filters-row">
             <div style={{ flex: 1 }}>
@@ -139,6 +190,7 @@ const Dashboard = () => {
                 showPriority={false}
               />
             </div>
+
             <div style={{ flex: 1 }}>
               <div className="dashboard-filters-label">優先度</div>
               <TaskFilters
@@ -150,20 +202,26 @@ const Dashboard = () => {
                 showPriority={true}
               />
             </div>
+
             <div style={{ flex: 1 }}>
               <div className="dashboard-filters-label">期限日が近い順</div>
               <TaskSort sort={sort} onSortChange={setSort} />
             </div>
           </div>
         </div>
-        <TaskList tasks={filteredTasks} onDelete={handleDelete} />
-        {showCreate && (
+
+        <TaskList tasks={filteredTasks} onDelete={handleDelete} onEdit={handleEdit} />
+
+        {/* 新規 or 編集モーダル */}
+        {showForm && (
           <TaskCreateForm
-            onCreated={async () => {
-              const tasks = await fetchTasks();
-              setAllTasks(tasks);
+            editingTask={editingTask}
+            onCreated={editingTask ? undefined : handleCreated}
+            onUpdated={editingTask ? handleUpdate : undefined}
+            onClose={() => {
+              setShowForm(false);
+              setEditingTask(null);
             }}
-            onClose={() => setShowCreate(false)}
           />
         )}
       </div>

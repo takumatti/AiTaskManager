@@ -1,69 +1,156 @@
 import { useState } from "react";
-import { createTask } from "../../api/taskApi";
-import type { TaskInput } from "../../types/task";
+import type { Task, TaskInput } from "../../types/task";
+import "./TaskCreateForm.css";
 
-interface Props {
-  onCreated: () => void; // 登録完了後に一覧を再取得する
+// Props タイプ定義
+type Props = {
+  editingTask?: Task | null;
+  onCreated?: (data: TaskInput) => void;
+  onUpdated?: (id: number, data: TaskInput) => void;
   onClose: () => void;
-}
+};
 
-export const TaskCreateForm = ({ onCreated, onClose }: Props) => {
-  const [form, setForm] = useState<TaskInput>({
-    title: "",
-    description: "",
-    due_date: "",
-    priority: "NORMAL",
-  });
+// タスク作成・編集フォームコンポーネント
+export const TaskCreateForm = ({
+  editingTask,
+  onCreated,
+  onUpdated,
+  onClose,
+}: Props) => {
+  const isEdit = !!editingTask;
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
+  // 初期値
+  const [title, setTitle] = useState(() => editingTask?.title ?? "");
+  const [description, setDescription] = useState(() => editingTask?.description ?? "");
+  // DB値→UI値変換
+  const dbToUiStatus = (status?: string) => {
+    switch (status) {
+      case "TODO": return "未着手";
+      case "DOING": return "進行中";
+      case "DONE": return "完了";
+      default: return "未着手";
+    }
   };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    try {
-      await createTask(form);
-      onCreated();
-      onClose();
-    } catch (e) {
-      console.error(e);
-      alert("タスク登録に失敗しました")
+  const dbToUiPriority = (priority?: string) => {
+    switch (priority) {
+      case "HIGH": return "高";
+      case "NORMAL": return "中";
+      case "LOW": return "低";
+      default: return "中";
+    }
+  };
+  const uiToDbStatus = (status: string) => {
+    switch (status) {
+      case "未着手": return "TODO";
+      case "進行中": return "DOING";
+      case "完了": return "DONE";
+      default: return "TODO";
+    }
+  };
+  const uiToDbPriority = (priority: string) => {
+    switch (priority) {
+      case "高": return "HIGH";
+      case "中": return "NORMAL";
+      case "低": return "LOW";
+      default: return "NORMAL";
     }
   };
 
+  // selectのvalueはUI値（日本語）
+  const [priority, setPriority] = useState(() => dbToUiPriority(editingTask?.priority));
+  const [status, setStatus] = useState(() => dbToUiStatus(editingTask?.status));
+  // yyyy/MM/dd→yyyy-MM-dd変換（input type=date用）
+  const toInputDate = (d?: string) => {
+    if (!d) return undefined;
+    // yyyy/MM/dd → yyyy-MM-dd
+    const m = d.match(/(\d{4})\/(\d{2})\/(\d{2})/);
+    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+    // 既にyyyy-MM-ddならそのまま
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+    return d;
+  };
+  const [dueDate, setDueDate] = useState<string | undefined>(
+    toInputDate(editingTask?.due_date)
+  );
+
+  // フォーム送信ハンドラ
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // 入力値
+
+    const input: TaskInput = {
+      title,
+      description: description ?? "",
+      priority: uiToDbPriority(priority),
+      status: uiToDbStatus(status),
+      due_date: dueDate && dueDate !== "" ? dueDate : undefined,
+    };
+
+    // 作成 or 更新のコールバック呼び出し
+    if (isEdit && editingTask && onUpdated) {
+      onUpdated(editingTask.id, input);
+    } else if (onCreated) {
+      onCreated(input);
+    }
+
+    onClose();
+  };
+
   return (
-    <div style={{ border: "1px solid #ddd", padding: 20, borderRadius: 8 }}>
-      <h3>タスク追加</h3>
-      <form onSubmit={handleSubmit}>
-        <div>
-          <label>タイトル</label>
-          <input name="title" value={form.title} onChange={handleChange} required />
-        </div>
+    <div className="modal-overlay">
+      <div className="task-modal">
+        <h3>{isEdit ? "タスク編集" : "新規タスク"}</h3>
 
-        <div>
-          <label>説明</label>
-          <textarea name="description" value={form.description} onChange={handleChange} />
-        </div>
+        <form onSubmit={handleSubmit}>
+          <label htmlFor="title">タイトル</label>
+          <input id="title" name="title" value={title} onChange={(e) => setTitle(e.target.value)} />
 
-        <div>
-          <label>期限</label>
-          <input type="date" name="due_date" value={form.due_date} onChange={handleChange} />
-        </div>
+          <label htmlFor="description">説明</label>
+          <textarea id="description" name="description" value={description} onChange={(e) => setDescription(e.target.value)} />
 
-        <div>
-          <label>優先度</label>
-          <select name="priority" value={form.priority} onChange={handleChange}>
-            <option value="LOW">LOW</option>
-            <option value="NORMAL">NORMAL</option>
-            <option value="HIGH">HIGH</option>
+          <label htmlFor="priority">優先度</label>
+          <select
+            id="priority"
+            name="priority"
+            value={priority}
+            onChange={(e) => setPriority(e.target.value)}
+          >
+            <option value="高">高</option>
+            <option value="中">中</option>
+            <option value="低">低</option>
           </select>
-        </div>
 
-        <button type="submit">登録</button>
-        <button type="button" onClick={onClose}>閉じる</button>
-      </form>
+          <label htmlFor="status">ステータス</label>
+          <select id="status" name="status" value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="未着手">未着手</option>
+            <option value="進行中">進行中</option>
+            <option value="完了">完了</option>
+          </select>
+
+          <label htmlFor="dueDate">期限日</label>
+          <input
+            id="dueDate"
+            name="dueDate"
+            type="date"
+            value={dueDate ?? ""}
+            onChange={(e) => setDueDate(e.target.value || undefined)}
+          />
+
+          <div className="modal-actions">
+            <button type="submit" className="btn btn-primary">
+              {isEdit ? "更新" : "作成"}
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={onClose}
+            >
+              閉じる
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };

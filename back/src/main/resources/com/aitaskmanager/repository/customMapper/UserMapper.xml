@@ -6,4 +6,10 @@
     from users
     where username = #{username}
   </select>
+  
+  <select id="selectIdByUsername" parameterType="java.lang.String" resultType="java.lang.Integer">
+    select id
+    from users
+    where username = #{username}
+  </select>
 </mapper>

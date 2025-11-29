@@ -15,6 +15,12 @@ export const createTask = async (task: TaskInput): Promise<Task> => {
   return res.data;
 };
 
+// タスク更新API
+export const updateTask = async (taskId: number, task: TaskInput): Promise<Task> => {
+  const res = await apiClient.put<Task>(`${API_BASE}/${taskId}`, task);
+  return res.data;
+};
+
 // タスク削除API
 export const deleteTask = async (taskId: number): Promise<void> => {
   await apiClient.delete(`${API_BASE}/${taskId}`);

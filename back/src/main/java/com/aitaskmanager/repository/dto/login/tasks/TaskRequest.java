@@ -15,4 +15,6 @@ public class TaskRequest {
     private String due_date;
     /** タスクの優先度 */
     private String priority;
+    /** タスクのステータス */
+    private String status;
 }

@@ -1,9 +1,10 @@
 package com.aitaskmanager.service.tasks;
 
-import java.sql.Date;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,6 +13,7 @@ import com.aitaskmanager.repository.customMapper.UserMapper;
 import com.aitaskmanager.repository.dto.login.tasks.TaskRequest;
 import com.aitaskmanager.repository.model.Tasks;
 import com.aitaskmanager.repository.model.Users;
+import com.aitaskmanager.util.TaskUtils;
 
 /**
  * タスクに関連するビジネスロジックを提供するサービス
@@ -46,11 +48,11 @@ public class TaskService {
      * タスクを作成する
      * 
      * @param username ユーザー名
-     * @param req タスク作成リクエスト
+     * @param request タスク作成リクエスト
      * @return 作成されたタスク
      */
     @Transactional(rollbackFor = Exception.class)
-    public Tasks createTask(String username, TaskRequest req) {
+    public Tasks createTask(String username, TaskRequest request) {
 
         Users user = userMapper.selectByUserName(username);
         if (user == null) {
@@ -59,18 +61,51 @@ public class TaskService {
 
         Tasks task = new Tasks();
         task.setUserId(user.getId());
-        task.setTitle(req.getTitle());
-        task.setDescription(req.getDescription());
-        task.setPriority(req.getPriority());
-
-        if (req.getDue_date() != null && !req.getDue_date().isEmpty()) {
-            task.setDueDate(Date.valueOf(req.getDue_date()));
-        }
-
+        task.setTitle(TaskUtils.defaultString(request.getTitle(), ""));
+        task.setDescription(TaskUtils.defaultString(request.getDescription(), ""));
+        task.setPriority(TaskUtils.normalizePriority(request.getPriority()));
+        task.setStatus(TaskUtils.normalizeStatus(request.getStatus()));
+        task.setDueDate(TaskUtils.toSqlDate(request.getDue_date()));
         taskMapper.insert(task);
-
         return task;
     }
+
+    /**
+     * タスクを更新する
+     * 
+     * @param taskId タスクID
+     * @param request タスク更新リクエスト
+     * @param username ユーザー名
+     * @return 更新されたタスク
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public Tasks updateTask(int taskId, TaskRequest request, String username) {
+
+        Integer userId = userMapper.selectIdByUsername(username);
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "ユーザーが存在しません");
+        }
+
+        Tasks task = new Tasks();
+        task.setUserId(userId);
+        task.setTitle(TaskUtils.defaultString(request.getTitle(), ""));
+        task.setDescription(TaskUtils.defaultString(request.getDescription(), ""));
+        task.setPriority(TaskUtils.normalizePriority(request.getPriority()));
+        task.setStatus(TaskUtils.normalizeStatus(request.getStatus()));
+        task.setDueDate(TaskUtils.toSqlDate(request.getDue_date()));
+
+        int update = taskMapper.update(task);
+
+
+        if (update == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "タスクが見つからないか権限がありません");
+        }
+
+        Tasks result = taskMapper.selectByTaskIdAndUserId(taskId, userId);
+
+        return result;
+    }
+
 
     /**
      * タスクを削除する
@@ -81,21 +116,15 @@ public class TaskService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteTask(int taskId, String username) {
 
-        Users user = userMapper.selectByUserName(username);
-        if (user == null) {
-            throw new RuntimeException("ユーザーが存在しません: " + username);
+        Integer userId = userMapper.selectIdByUsername(username);
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "ユーザーが存在しません");
         }
 
-        Tasks task = taskMapper.selectById(taskId);
-        if (task == null) {
-            throw new RuntimeException("タスクが存在しません: id=" + taskId);
+        int deleted = taskMapper.deleteByIdAndUserId(taskId, userId);
+        if (deleted == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "タスクが見つからないか権限がありません");
         }
-
-        // 自分のタスク以外を消せないようにガード
-        if (!task.getUserId().equals(user.getId())) {
-            throw new RuntimeException("このタスクを削除する権限がありません");
-        }
-
-        taskMapper.delete(taskId);
     }
+
 }
