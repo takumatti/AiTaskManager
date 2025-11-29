@@ -1,7 +1,20 @@
 // ユーティリティ（モジュールスコープに配置）
-// ISO 8601（例: "2025-11-24T09:15:00+00:00"）をミリ秒に変換
-const parseIsoToEpoch = (s?: string | null): number => {
+// 柔軟な日付文字列をミリ秒に変換（yyyy/MM/dd, yyyy-MM-dd, ISO8601）
+const parseDateFlexibleToEpoch = (s?: string | null): number => {
   if (!s) return NaN;
+  // yyyy/MM/dd
+  const m1 = s.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
+  if (m1) {
+    const dt = new Date(Number(m1[1]), Number(m1[2]) - 1, Number(m1[3]));
+    return dt.getTime();
+  }
+  // yyyy-MM-dd
+  const m2 = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m2) {
+    const dt = new Date(Number(m2[1]), Number(m2[2]) - 1, Number(m2[3]));
+    return dt.getTime();
+  }
+  // ISO 8601 などその他
   const ms = Date.parse(s);
   return Number.isNaN(ms) ? NaN : ms;
 };
@@ -45,6 +58,8 @@ const Dashboard = () => {
   const [status, setStatus] = useState("");
   const [priority, setPriority] = useState("");
   const [sort, setSort] = useState("due_date_asc");
+  // クイックフィルタ（today/soon/not_done など）
+  const [quickFilter, setQuickFilter] = useState<"all" | "today" | "soon" | "not_done">("all");
   // 編集中タスク
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   // モーダル表示
@@ -69,15 +84,34 @@ const Dashboard = () => {
     const list = allTasks.filter((t) => {
       if (status && t.status !== status) return false;
       if (priority && t.priority !== priority) return false;
+      // 追加クイックフィルタ
+      if (quickFilter !== "all") {
+        const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        const today = startOfDay(new Date());
+        const dueMs = parseDateFlexibleToEpoch(t?.due_date);
+        const due = Number.isNaN(dueMs) ? null : new Date(dueMs);
+        const isDone = t.status === "DONE";
+        if (quickFilter === "not_done" && isDone) return false;
+        if (quickFilter === "today") {
+          if (!due) return false;
+          if (startOfDay(due).getTime() !== today.getTime()) return false;
+        }
+        if (quickFilter === "soon") {
+          if (!due || isDone) return false;
+          const diffMs = startOfDay(due).getTime() - today.getTime();
+          const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+          if (diffDays < 0 || diffDays > 3) return false;
+        }
+      }
       return true;
     });
 
     // ソート
     list.sort((a, b) => {
-      const dueA = parseIsoToEpoch(a?.due_date);
-      const dueB = parseIsoToEpoch(b?.due_date);
-      const createdA = parseIsoToEpoch(a?.created_at);
-      const createdB = parseIsoToEpoch(b?.created_at);
+      const dueA = parseDateFlexibleToEpoch(a?.due_date);
+      const dueB = parseDateFlexibleToEpoch(b?.due_date);
+      const createdA = parseDateFlexibleToEpoch(a?.created_at);
+      const createdB = parseDateFlexibleToEpoch(b?.created_at);
 
       switch (sort) {
         case "due_date_asc":
@@ -102,7 +136,37 @@ const Dashboard = () => {
     });
 
     return list;
-  }, [status, priority, sort, allTasks]);
+  }, [status, priority, sort, allTasks, quickFilter]);
+
+  // 統計（今日/完了/未完了/期日が近い）
+  const { todayCount, doneCount, notDoneCount, soonDueCount } = useMemo(() => {
+    const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const today = startOfDay(new Date());
+    const withinDays = (base: Date, target: Date, days: number) => {
+      const diffMs = startOfDay(target).getTime() - base.getTime();
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      return diffDays >= 0 && diffDays <= days; // 今日含む
+    };
+
+    let tCount = 0; // 今日が期限
+    let dCount = 0; // 完了
+    let ndCount = 0; // 未完了
+    let sCount = 0; // 期限が近い（3日以内, 未完了のみ）
+
+    for (const t of allTasks) {
+      const dueMs = parseDateFlexibleToEpoch(t.due_date);
+      const due = Number.isNaN(dueMs) ? null : new Date(dueMs);
+      const isDone = t.status === "DONE";
+
+      if (isDone) dCount++; else ndCount++;
+      if (due) {
+        if (startOfDay(due).getTime() === today.getTime()) tCount++;
+        if (!isDone && withinDays(today, due, 3)) sCount++;
+      }
+    }
+
+    return { todayCount: tCount, doneCount: dCount, notDoneCount: ndCount, soonDueCount: sCount };
+  }, [allTasks]);
 
   // 編集開始
   const handleEdit = (task: Task) => {
@@ -173,6 +237,57 @@ const Dashboard = () => {
             >
               ログアウト
             </button>
+          </div>
+        </div>
+
+        {/* ステータスサマリ */}
+        <div className="dashboard-stats">
+          <div
+            className={`stat-item ${quickFilter === "today" ? "active" : ""}`}
+            role="button"
+            tabIndex={0}
+            onClick={() => setQuickFilter(quickFilter === "today" ? "all" : "today")}
+          >
+            <div className="stat-label">今日のタスク</div>
+            <div className="stat-value">{todayCount}</div>
+          </div>
+          <div
+            className={`stat-item ${status === "DONE" ? "active" : ""}`}
+            role="button"
+            tabIndex={0}
+            onClick={() => {
+              // トグル: DONE -> 解除
+              setQuickFilter("all");
+              setStatus(status === "DONE" ? "" : "DONE");
+            }}
+          >
+            <div className="stat-label">完了</div>
+            <div className="stat-value">{doneCount}</div>
+          </div>
+          <div
+            className={`stat-item ${quickFilter === "not_done" && !status ? "active" : ""}`}
+            role="button"
+            tabIndex={0}
+            onClick={() => {
+              // 未完了はstatusフィルタは解除してクイックフィルタで除外
+              setStatus("");
+              setQuickFilter(quickFilter === "not_done" ? "all" : "not_done");
+            }}
+          >
+            <div className="stat-label">未完了</div>
+            <div className="stat-value">{notDoneCount}</div>
+          </div>
+          <div
+            className={`stat-item ${quickFilter === "soon" ? "active" : ""}`}
+            role="button"
+            tabIndex={0}
+            onClick={() => {
+              setStatus("");
+              setQuickFilter(quickFilter === "soon" ? "all" : "soon");
+            }}
+          >
+            <div className="stat-label">期限が近い(3日)</div>
+            <div className="stat-value">{soonDueCount}</div>
           </div>
         </div>
 
