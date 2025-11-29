@@ -1,5 +1,7 @@
 import type { Task } from "../../types/task";
 import "./TaskItem.css";
+import { useState } from "react";
+import { ConfirmDialog } from "../common/ConfirmDialog";
 
 const formatDate = (dateStr?: string) => {
   if (!dateStr) return "なし";
@@ -27,17 +29,34 @@ export const TaskItem = ({
   onDelete: (id: number) => void;
   onEdit: (task: Task) => void;
 }) => {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const handleDeleteClick = () => setConfirmOpen(true);
+  const handleConfirm = () => { setConfirmOpen(false); onDelete(task.id); };
+  const handleCancel = () => setConfirmOpen(false);
   return (
     <div className="task-item-card">
       <div className="task-item-header">
         <div className="task-item-title">{task.title}</div>
-        {/* 編集ボタン */}
-        <button onClick={() => onEdit(task)}>編集</button>
-        {/* 削除ボタン */}
-        <button className="task-delete-btn" onClick={() => onDelete(task.id)}>
-          削除
-        </button>
+        <div className="task-item-actions">
+          <button className="task-edit-btn" onClick={() => onEdit(task)}>編集</button>
+          <button
+            className="task-delete-btn"
+            onClick={handleDeleteClick}
+          >
+            削除
+          </button>
+        </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="削除の確認"
+        message={`タスク「${task.title}」を削除します。よろしいですか？`}
+        confirmText="削除"
+        cancelText="キャンセル"
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
+      />
 
       {task.description && (
         <div className="task-item-desc">{task.description}</div>

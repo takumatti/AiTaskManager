@@ -1,0 +1,58 @@
+/* Overlay */
+.confirm-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+}
+
+/* Modal */
+.confirm-modal {
+  background: #fff;
+  color: #222;
+  border-radius: 10px;
+  width: 420px;
+  max-width: 92vw;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  padding: 18px 20px 16px 20px;
+}
+
+.confirm-header h4 {
+  margin: 0 0 8px 0;
+}
+
+.confirm-body p {
+  margin: 0 0 16px 0;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.btn {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-secondary {
+  background-color: #6c757d;
+  color: white;
+}
+
+.btn-danger {
+  background-color: #dc3545;
+  color: white;
+}
+
+.btn-secondary:hover { background-color: #5c636a; }
+.btn-danger:hover { background-color: #bb2d3b; }

@@ -46,6 +46,25 @@
   align-items: center;
 }
 
+.task-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.task-edit-btn {
+  padding: 4px 8px;
+  background: #3182ce; /* blue */
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.task-edit-btn:hover {
+  background: #2b6cb0;
+}
+
 .task-delete-btn {
   padding: 4px 8px;
   background: #ff4d4f;
