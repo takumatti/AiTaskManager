@@ -66,6 +66,8 @@ const Dashboard = () => {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   // モーダル表示
   const [showForm, setShowForm] = useState(false);
+  // カレンダーセルから新規作成する際の初期期日
+  const [initialDueDateForCreate, setInitialDueDateForCreate] = useState<string | undefined>(undefined);
   // 表示モード(list | calendar)
   const [view, setView] = useState<'list' | 'calendar'>("list");
   // カレンダー用の月（1日を基準）
@@ -349,6 +351,11 @@ const Dashboard = () => {
               onPrev={() => setCalendarMonth(m => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
               onNext={() => setCalendarMonth(m => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
               onEdit={(task) => handleEdit(task)}
+                onCreate={(dateISO) => {
+                  setEditingTask(null);
+                  setInitialDueDateForCreate(dateISO);
+                  setShowForm(true);
+                }}
             />
             <TaskLegend />
           </>
@@ -360,9 +367,11 @@ const Dashboard = () => {
             editingTask={editingTask}
             onCreated={editingTask ? undefined : handleCreated}
             onUpdated={editingTask ? handleUpdate : undefined}
+            initialDueDate={initialDueDateForCreate}
             onClose={() => {
               setShowForm(false);
               setEditingTask(null);
+              setInitialDueDateForCreate(undefined);
             }}
           />
         )}

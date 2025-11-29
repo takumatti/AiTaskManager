@@ -8,6 +8,7 @@ type Props = {
   onCreated?: (data: TaskInput) => void;
   onUpdated?: (id: number, data: TaskInput) => void;
   onClose: () => void;
+  initialDueDate?: string; // yyyy-MM-dd 形式（新規作成時の初期期限日）
 };
 
 // タスク作成・編集フォームコンポーネント
@@ -16,6 +17,7 @@ export const TaskCreateForm = ({
   onCreated,
   onUpdated,
   onClose,
+  initialDueDate,
 }: Props) => {
   const isEdit = !!editingTask;
   // モーダル表示中は背景スクロールを禁止
@@ -87,9 +89,12 @@ export const TaskCreateForm = ({
     if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
     return d;
   };
-  const [dueDate, setDueDate] = useState<string | undefined>(
-    toInputDate(editingTask?.due_date)
-  );
+  const [dueDate, setDueDate] = useState<string | undefined>(() => {
+    // 編集時は既存値を優先、非編集（新規）時はinitialDueDateを採用
+    const fromEdit = toInputDate(editingTask?.due_date);
+    if (fromEdit !== undefined) return fromEdit;
+    return initialDueDate ?? undefined;
+  });
 
   // フォーム送信ハンドラ
   const handleSubmit = (e: React.FormEvent) => {

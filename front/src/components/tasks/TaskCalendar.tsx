@@ -24,6 +24,7 @@ interface TaskCalendarProps {
   onPrev: () => void;
   onNext: () => void;
   onEdit: (task: Task) => void;
+  onCreate?: (dateISO: string) => void; // カレンダーセルクリックで新規作成（yyyy-MM-dd）
 }
 
 
@@ -63,7 +64,7 @@ const isSameDay = (d: Date, due: string | undefined): boolean => {
   );
 };
 
-export const TaskCalendar: React.FC<TaskCalendarProps> = ({ tasks, month, onPrev, onNext, onEdit }) => {
+export const TaskCalendar: React.FC<TaskCalendarProps> = ({ tasks, month, onPrev, onNext, onEdit, onCreate }) => {
   const monthMatrix = useMemo(() => buildMonthMatrix(month), [month]);
   const today = new Date();
   const [tooltipTaskId, setTooltipTaskId] = useState<number | null>(null);
@@ -198,6 +199,11 @@ export const TaskCalendar: React.FC<TaskCalendarProps> = ({ tasks, month, onPrev
                 <div
                   key={di}
                   className={`task-calendar-cell${inCurrentMonth ? "" : " out-month"}${isToday ? " today" : ""}${(isSunday || holidayFlag) ? " sunday" : ""}${isSaturday ? " saturday" : ""}${holidayFlag ? " holiday" : ""}`}
+                  onClick={() => {
+                    if (!inCurrentMonth) return; // 当月以外は反応させない
+                    const iso = key; // formatDateKeyはyyyy-MM-dd
+                    if (onCreate) onCreate(iso);
+                  }}
                 >
                   <div className={`date-label${(isSunday || holidayFlag) ? " sunday" : ""}${isSaturday ? " saturday" : ""}${holidayFlag ? " holiday" : ""}`}>{day.getDate()}{holidayName && <div className="holiday-name" title={holidayName}>{holidayName}</div>}</div>
                   <div className="tasks-container">
