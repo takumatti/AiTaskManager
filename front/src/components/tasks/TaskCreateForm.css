@@ -28,21 +28,38 @@
   align-items: stretch;
 }
 
+/* モーダル表示中は背景スクロール禁止 */
+body.no-scroll {
+  overflow: hidden;
+}
+
 /* フォーム内のマージン */
-.modal label {
+.task-modal label {
   display: block;
   margin-top: 10px;
   margin-bottom: 4px;
   font-weight: bold;
 }
 
-.modal input,
-.modal select {
+.task-modal input,
+.task-modal select,
+.task-modal textarea {
   width: 100%;
   padding: 6px 8px;
   border-radius: 4px;
   border: 1px solid #ccc;
   margin-bottom: 10px;
+}
+
+/* 説明欄を少し大きめに */
+.task-modal textarea#description {
+  min-height: 140px; /* だいたい5〜6行分 */
+  resize: vertical;
+}
+
+.task-form-vertical .form-group {
+  display: block;
+  width: 100%;
 }
 
 .modal-actions {

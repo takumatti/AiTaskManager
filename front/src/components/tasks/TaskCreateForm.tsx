@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Task, TaskInput } from "../../types/task";
 import "./TaskCreateForm.css";
 
@@ -18,6 +18,16 @@ export const TaskCreateForm = ({
   onClose,
 }: Props) => {
   const isEdit = !!editingTask;
+  // モーダル表示中は背景スクロールを禁止
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow;
+    document.body.classList.add("no-scroll");
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.classList.remove("no-scroll");
+      document.body.style.overflow = prevOverflow;
+    };
+  }, []);
 
   // 初期値
   const [title, setTitle] = useState(() => editingTask?.title ?? "");
@@ -102,40 +112,50 @@ export const TaskCreateForm = ({
       <div className="task-modal">
         <h3>{isEdit ? "タスク編集" : "新規タスク"}</h3>
 
-        <form onSubmit={handleSubmit}>
-          <label htmlFor="title">タイトル</label>
-          <input id="title" name="title" value={title} onChange={(e) => setTitle(e.target.value)} />
+        <form onSubmit={handleSubmit} className="task-form-vertical">
+          <div className="form-group">
+            <label htmlFor="title">タイトル</label>
+            <input id="title" name="title" value={title} onChange={(e) => setTitle(e.target.value)} />
+          </div>
 
-          <label htmlFor="description">説明</label>
-          <textarea id="description" name="description" value={description} onChange={(e) => setDescription(e.target.value)} />
+          <div className="form-group">
+            <label htmlFor="description">説明</label>
+            <textarea id="description" name="description" value={description} onChange={(e) => setDescription(e.target.value)} />
+          </div>
 
-          <label htmlFor="priority">優先度</label>
-          <select
-            id="priority"
-            name="priority"
-            value={priority}
-            onChange={(e) => setPriority(e.target.value)}
-          >
-            <option value="高">高</option>
-            <option value="中">中</option>
-            <option value="低">低</option>
-          </select>
+          <div className="form-group">
+            <label htmlFor="priority">優先度</label>
+            <select
+              id="priority"
+              name="priority"
+              value={priority}
+              onChange={(e) => setPriority(e.target.value)}
+            >
+              <option value="高">高</option>
+              <option value="中">中</option>
+              <option value="低">低</option>
+            </select>
+          </div>
 
-          <label htmlFor="status">ステータス</label>
-          <select id="status" name="status" value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value="未着手">未着手</option>
-            <option value="進行中">進行中</option>
-            <option value="完了">完了</option>
-          </select>
+          <div className="form-group">
+            <label htmlFor="status">ステータス</label>
+            <select id="status" name="status" value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="未着手">未着手</option>
+              <option value="進行中">進行中</option>
+              <option value="完了">完了</option>
+            </select>
+          </div>
 
-          <label htmlFor="dueDate">期限日</label>
-          <input
-            id="dueDate"
-            name="dueDate"
-            type="date"
-            value={dueDate ?? ""}
-            onChange={(e) => setDueDate(e.target.value || undefined)}
-          />
+          <div className="form-group">
+            <label htmlFor="dueDate">期限日</label>
+            <input
+              id="dueDate"
+              name="dueDate"
+              type="date"
+              value={dueDate ?? ""}
+              onChange={(e) => setDueDate(e.target.value || undefined)}
+            />
+          </div>
 
           <div className="modal-actions">
             <button type="submit" className="btn btn-primary">
