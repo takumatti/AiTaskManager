@@ -41,6 +41,8 @@ import { useNavigate } from "react-router-dom";
 import type { Task, TaskInput } from "../types/task";
 import { fetchTasks, deleteTask, updateTask, createTask } from "../api/taskApi";
 import { TaskList } from "../components/tasks/TaskList";
+import { TaskCalendar } from "../components/tasks/TaskCalendar";
+import { TaskLegend } from "../components/tasks/TaskLegend";
 import { TaskFilters } from "../components/tasks/TaskFilters";
 import { TaskSort } from "../components/tasks/TaskSort";
 import { TaskCreateForm } from "../components/tasks/TaskCreateForm";
@@ -64,6 +66,13 @@ const Dashboard = () => {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   // モーダル表示
   const [showForm, setShowForm] = useState(false);
+  // 表示モード(list | calendar)
+  const [view, setView] = useState<'list' | 'calendar'>("list");
+  // カレンダー用の月（1日を基準）
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
 
   // タスク一覧取得
   useEffect(() => {
@@ -215,22 +224,32 @@ const Dashboard = () => {
     <div className="dashboard-container">
       <div className="dashboard-card">
         <div className="dashboard-header header-row">
-          <div className="dashboard-title">タスク一覧</div>
-          <div className="dashboard-actions-top-right">
-            <button
-              className="btn btn-primary"
-              onClick={() => {
-                setEditingTask(null);
-                setShowForm(true);
-              }}
-            >新規</button>
-            <button
-              className="btn btn-outline-secondary"
-              onClick={async () => {
-                await logout();
-                navigate("/login");
-              }}
-            >ログアウト</button>
+          <div className="dashboard-header-top">
+            <div className="dashboard-title-inline">タスク一覧</div>
+            <div className="dashboard-header-actions">
+              <button
+                className="btn btn-primary me-2"
+                onClick={() => {
+                  setEditingTask(null);
+                  setShowForm(true);
+                }}
+              >新規</button>
+              <button
+                className="btn btn-outline-secondary"
+                onClick={async () => {
+                  await logout();
+                  navigate("/login");
+                }}
+              >ログアウト</button>
+            </div>
+          </div>
+          <div className="dashboard-header-sub">
+            <div className="dashboard-view-toggle-right">
+              <button
+                className="btn btn-primary"
+                onClick={() => setView(view === 'list' ? 'calendar' : 'list')}
+              >{view === 'list' ? 'カレンダー表示' : 'リスト表示'}</button>
+            </div>
           </div>
         </div>
 
@@ -319,7 +338,21 @@ const Dashboard = () => {
           </div>
         </div>
 
-        <TaskList tasks={filteredTasks} onDelete={handleDelete} onEdit={handleEdit} />
+        {view === 'list' && (
+          <TaskList tasks={filteredTasks} onDelete={handleDelete} onEdit={handleEdit} />
+        )}
+        {view === 'calendar' && (
+          <>
+            <TaskCalendar
+              tasks={filteredTasks}
+              month={calendarMonth}
+              onPrev={() => setCalendarMonth(m => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
+              onNext={() => setCalendarMonth(m => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
+              onEdit={(task) => handleEdit(task)}
+            />
+            <TaskLegend />
+          </>
+        )}
 
         {/* 新規 or 編集モーダル */}
         {showForm && (

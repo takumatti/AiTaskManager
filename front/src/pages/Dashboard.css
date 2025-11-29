@@ -54,6 +54,41 @@
   gap: 8px;
 }
 
+/* 新レイアウト */
+.dashboard-header-top {
+  width: 100%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end; /* actions 右側 */
+  min-height: 48px; /* タイトルの高さ確保 */
+  margin-bottom: 4px;
+}
+.dashboard-title-inline {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #2d3748;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none; /* 背後ボタン操作阻害防止 */
+}
+.dashboard-header-actions {
+  display: flex;
+  align-items: center;
+}
+.dashboard-header-sub {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+.dashboard-view-toggle-right {
+  display: flex;
+  justify-content: flex-end;
+}
+
 @media (max-width: 600px) {
   .dashboard-actions-top-right {
     top: 0;
@@ -79,7 +114,6 @@
 }
 
 /* 固定ログアウトボタン */
-/* 固定ボタン削除済み */
 
 /* Stats bar */
 .dashboard-stats {
