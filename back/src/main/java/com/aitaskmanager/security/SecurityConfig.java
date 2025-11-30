@@ -119,12 +119,17 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of(
-            "http://localhost:5173",
-            "http://127.0.0.1:5173",
-            "http://localhost:3000",
-            "http://127.0.0.1:3000"
-        )); // フロントのURL（開発用に拡張）
+        // 環境変数から本番フロントURLを読み取り（Renderなど）
+        String prodFront = System.getenv("FRONTEND_ORIGIN");
+        List<String> origins = new java.util.ArrayList<>();
+        origins.add("http://localhost:5173");
+        origins.add("http://127.0.0.1:5173");
+        origins.add("http://localhost:3000");
+        origins.add("http://127.0.0.1:3000");
+        if (prodFront != null && !prodFront.isBlank()) {
+            origins.add(prodFront);
+        }
+        configuration.setAllowedOrigins(origins); // フロントのURL（開発 + 本番）
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowCredentials(true);
         configuration.setAllowedHeaders(List.of("*"));
