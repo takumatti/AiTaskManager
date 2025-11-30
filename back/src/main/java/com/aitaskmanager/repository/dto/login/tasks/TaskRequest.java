@@ -17,4 +17,6 @@ public class TaskRequest {
     private String priority;
     /** タスクのステータス */
     private String status;
+    /** AIで細分化するか（trueならサブタスク生成を試みる） */
+    private Boolean ai_decompose;
 }

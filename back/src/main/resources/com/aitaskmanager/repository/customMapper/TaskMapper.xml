@@ -4,6 +4,7 @@
   <resultMap id="BaseResultMap" type="com.aitaskmanager.repository.model.Tasks">
     <id column="id" jdbcType="INTEGER" property="id" />
     <result column="user_id" jdbcType="INTEGER" property="userId" />
+    <result column="parent_task_id" jdbcType="INTEGER" property="parentTaskId" />
     <result column="title" jdbcType="VARCHAR" property="title" />
     <result column="description" jdbcType="VARCHAR" property="description" />
     <result column="due_date" jdbcType="DATE" property="dueDate" />
@@ -11,24 +12,44 @@
     <result column="status" jdbcType="VARCHAR" property="status" />
     <result column="created_at" jdbcType="TIMESTAMP" property="createdAt" />
     <result column="updated_at" jdbcType="TIMESTAMP" property="updatedAt" />
+    <result column="decomposed_at" jdbcType="TIMESTAMP" property="decomposedAt" />
   </resultMap>
 
   <select id="selectByUserId" parameterType="java.lang.Integer" resultMap="BaseResultMap">
-    select id, user_id, title, description, due_date, priority, status, created_at, updated_at
+    select id, user_id, parent_task_id, title, description, due_date, priority, status, created_at, updated_at, decomposed_at
     from tasks
     where user_id = #{userId}
   </select>
 
   <select id="selectByTaskIdAndUserId" resultMap="BaseResultMap">
-    select id, user_id, title, description, due_date, priority, status, created_at, updated_at
+    select id, user_id, parent_task_id, title, description, due_date, priority, status, created_at, updated_at, decomposed_at
     from tasks
     where id = #{taskId}
       and user_id = #{userId}
   </select>
+
+  <select id="countChildrenByParentId" parameterType="java.lang.Integer" resultType="int">
+    select count(1) from tasks where parent_task_id = #{parentTaskId}
+  </select>
+
+  <select id="selectChildrenByParentId" parameterType="java.lang.Integer" resultMap="BaseResultMap">
+    select id, user_id, parent_task_id, title, description, due_date, priority, status, created_at, updated_at, decomposed_at
+    from tasks
+    where parent_task_id = #{parentTaskId}
+    order by id asc
+  </select>
+
+  <delete id="deleteChildrenByParentId" parameterType="java.lang.Integer">
+    delete from tasks where parent_task_id = #{parentTaskId}
+  </delete>
   
-  <insert id="insert" parameterType="com.aitaskmanager.repository.model.Tasks" useGeneratedKeys="true" keyProperty="id">
-    insert into tasks (user_id, title, description, due_date, priority, status, created_at, updated_at)
-    values (#{userId}, #{title}, #{description}, #{dueDate}, #{priority}, #{status}, now(), now())
+  <update id="updateDecomposedAt">
+    update tasks set decomposed_at = now(), updated_at = now() where id = #{id} and user_id = #{userId}
+  </update>
+  
+  <insert id="insert" parameterType="com.aitaskmanager.repository.model.Tasks" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+    insert into tasks (user_id, parent_task_id, title, description, due_date, priority, status, created_at, updated_at, decomposed_at)
+    values (#{userId}, #{parentTaskId}, #{title}, #{description}, #{dueDate}, #{priority}, #{status}, now(), now(), #{decomposedAt})
   </insert>
   
   <update id="update">
@@ -39,6 +60,8 @@
       status = #{status},
       priority = #{priority},
       due_date = #{dueDate},
+      parent_task_id = #{parentTaskId},
+      decomposed_at = #{decomposedAt},
       updated_at = now()
     where id = #{id} and user_id = #{userId}
   </update>  

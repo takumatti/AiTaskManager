@@ -2,10 +2,10 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start; /* 上詰めで通常スクロールを許可 */
   align-items: center;
   background: linear-gradient(135deg, #f8fafc 0%, #e0e7ef 100%);
-  overflow: visible !important;
+  overflow-y: auto; /* 縦スクロールを有効化 */
 }
 
 .dashboard-card {

@@ -56,4 +56,36 @@ public interface TaskMapper {
      */
     int deleteByIdAndUserId(@Param("id") Integer id, 
                             @Param("userId") Integer userId);
+
+    /**
+     * 親タスクIDに紐づく子タスク件数を取得する（二重細分化防止用）
+     * 
+     * @param parentTaskId 親タスクID
+     * @return 子タスク件数
+     */
+    int countChildrenByParentId(@Param("parentTaskId") Integer parentTaskId);
+
+    /**
+     * 親タスクIDで子タスク一覧取得
+     * 
+     * @param parentTaskId 親タスクID
+     * @return 子タスクリスト
+     */
+    List<Tasks> selectChildrenByParentId(@Param("parentTaskId") Integer parentTaskId);
+
+    /**
+     * 親タスクIDで子タスク削除（再分解前）
+     * 
+     * @param parentTaskId 親タスクID
+     * @return 削除された行数
+     */
+    int deleteChildrenByParentId(@Param("parentTaskId") Integer parentTaskId);
+
+    /**
+     * 親タスクの細分化日時更新
+     * 
+     * @param id 親タスクID
+     * @param userId ユーザーID
+     */
+    int updateDecomposedAt(@Param("id") Integer id, @Param("userId") Integer userId);
 }

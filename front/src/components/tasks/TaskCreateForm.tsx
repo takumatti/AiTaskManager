@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Task, TaskInput } from "../../types/task";
+import { fetchTasks } from "../../api/taskApi";
 import "./TaskCreateForm.css";
 
 // Props タイプ定義
@@ -91,10 +92,45 @@ export const TaskCreateForm = ({
   };
   const [dueDate, setDueDate] = useState<string | undefined>(() => {
     // 編集時は既存値を優先、非編集（新規）時はinitialDueDateを採用
-    const fromEdit = toInputDate(editingTask?.due_date);
+    const fromEdit = toInputDate(editingTask?.dueDate);
     if (fromEdit !== undefined) return fromEdit;
     return initialDueDate ?? undefined;
   });
+  // AIで細分化（新規/編集の両方で選択可能）
+  const [aiDecompose, setAiDecompose] = useState<boolean>(false);
+  // 子タスクの有無に関係なくチェックボックスを表示するため、状態は不要
+  const [atMaxDepth, setAtMaxDepth] = useState<boolean>(false); // ルートからの深さが4以上
+
+  // 編集モードで既存子タスク有無と深さを取得し、条件に応じてAI細分化チェックを非表示
+  useEffect(() => {
+    const loadChildren = async () => {
+      if (isEdit && editingTask) {
+        try {
+          const all = await fetchTasks();
+          const getParentId = (t: Task) => t.parentTaskId as number | undefined;
+          const children = all.filter(t => getParentId(t) === editingTask.id);
+          console.debug("[TaskCreateForm] edit load children count=", children.length, "editingId=", editingTask.id);
+           // 子タスクが存在していてもチェックボックスは表示するため、状態管理は不要
+          // 深さ計算（root=1）。editingTask自身の深さを算出。
+          let depth = 1;
+          let pid = getParentId(editingTask);
+          // サイクル防止に上限
+          let guard = 0;
+          while (pid && guard++ < 128) {
+            depth += 1;
+            const parent = all.find(t => t.id === pid);
+            if (!parent) break;
+            pid = getParentId(parent);
+          }
+          setAtMaxDepth(depth >= 4); // 4以上の深さを設定
+        } catch (e) {
+          // 失敗時は表示を維持（ログのみ）
+          console.warn("子タスク取得に失敗", e);
+        }
+      }
+    };
+    loadChildren();
+  }, [isEdit, editingTask]);
 
   // フォーム送信ハンドラ
   const handleSubmit = (e: React.FormEvent) => {
@@ -107,7 +143,8 @@ export const TaskCreateForm = ({
       description: description ?? "",
       priority: uiToDbPriority(priority),
       status: uiToDbStatus(status),
-      due_date: dueDate && dueDate !== "" ? dueDate : undefined,
+  due_date: dueDate && dueDate !== "" ? dueDate : undefined,
+      ai_decompose: aiDecompose,
     };
 
     // 作成 or 更新のコールバック呼び出し
@@ -169,6 +206,31 @@ export const TaskCreateForm = ({
               onChange={(e) => setDueDate(e.target.value || undefined)}
             />
           </div>
+
+          {!atMaxDepth && (
+            <div className="form-group form-check" style={{ marginTop: 8 }}>
+              <input
+                id="aiDecompose"
+                name="aiDecompose"
+                type="checkbox"
+                className="form-check-input checkbox-small"
+                checked={aiDecompose}
+                onChange={(e) => setAiDecompose(e.target.checked)}
+              />
+              <label htmlFor="aiDecompose" className="form-check-label">
+                AIでタスクを細分化（小タスクを自動作成）
+              </label>
+              <div className="ai-hint" style={{ marginTop: 4 }}>
+                {isEdit ? "更新後に小タスク生成" : "作成後に小タスク生成"}
+              </div>
+            </div>
+          )}
+          {/* 子タスク存在時の再細分化不可メッセージは撤廃（最大深度のみ制限表示） */}
+          {atMaxDepth && (
+            <div style={{ marginTop: 8, fontSize: 12, color: "#666" }}>
+              階層は最大4までです。このタスクは最大階層に達しているため細分化できません。
+            </div>
+          )}
 
           <div className="modal-actions">
             <button type="submit" className="btn btn-primary">

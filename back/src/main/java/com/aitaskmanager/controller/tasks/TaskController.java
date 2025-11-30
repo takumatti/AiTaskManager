@@ -21,6 +21,7 @@ import com.aitaskmanager.repository.dto.login.tasks.TaskRequest;
 import com.aitaskmanager.repository.model.Tasks;
 import com.aitaskmanager.repository.dto.login.tasks.TaskResponse;
 import com.aitaskmanager.service.tasks.TaskService;
+import com.aitaskmanager.repository.dto.login.tasks.TaskTreeResponse;
 
 /**
  * タスクに関連するAPIエンドポイントを提供するコントローラー
@@ -51,16 +52,29 @@ public class TaskController {
         return tasks.stream().map(t -> {
             TaskResponse dto = new TaskResponse();
             dto.setId(t.getId());
-            dto.setUser_id(t.getUserId());
+            dto.setUserId(t.getUserId());
+            dto.setParentTaskId(t.getParentTaskId());
             dto.setTitle(t.getTitle());
             dto.setDescription(t.getDescription());
-            dto.setDue_date(t.getDueDate() != null ? dueSdf.format(t.getDueDate()) : null);
+            dto.setDueDate(t.getDueDate() != null ? dueSdf.format(t.getDueDate()) : null);
             dto.setPriority(t.getPriority());
             dto.setStatus(t.getStatus());
-            dto.setCreated_at(dtSdf.format(t.getCreatedAt()));
-            dto.setUpdated_at(dtSdf.format(t.getUpdatedAt()));
+            dto.setCreatedAt(dtSdf.format(t.getCreatedAt()));
+            dto.setUpdatedAt(dtSdf.format(t.getUpdatedAt()));
             return dto;
         }).collect(Collectors.toList());
+    }
+
+    /**
+     * 階層ツリー取得
+     * 
+     * @param authentication 認証情報
+     * @return タスク階層ツリーのリスト
+     */
+    @GetMapping("/tree")
+    public List<TaskTreeResponse> getTaskTree(Authentication authentication) {
+        String username = authentication.getName();
+        return taskService.getTaskTree(username);
     }
 
     /**
@@ -89,6 +103,32 @@ public class TaskController {
         String username = authentication.getName();
         Tasks updated = taskService.updateTask(id, request, username);
         return ResponseEntity.ok(updated);
+    }
+
+    /**
+     * タスクを再細分化するエンドポイント
+     * 
+     * @param id タスクID
+     * @param request タスク再細分化リクエスト
+     * @param authentication 認証情報
+     * @return 再細分化されたタスクツリーのリスト
+     */
+    @PostMapping("/{id}/redecompose")
+    public List<TaskTreeResponse> redecompose(@PathVariable int id, @RequestBody TaskRequest request, Authentication authentication) {
+        String username = authentication.getName();
+        return taskService.redecomposeTask(username, id, request);
+    }
+
+    /**
+     * タスクを削除するエンドポイント
+     * 
+     * @param id タスクID
+     * @param authentication 認証情報
+     */
+    @PostMapping("/{id}/decompose")
+    public List<TaskTreeResponse> decompose(@PathVariable int id, @RequestBody TaskRequest request, Authentication authentication) {
+        String username = authentication.getName();
+        return taskService.redecomposeTask(username, id, request);
     }
 
 

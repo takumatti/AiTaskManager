@@ -75,6 +75,8 @@ const Dashboard = () => {
     const d = new Date();
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
+  // 子コンポーネントへ更新を通知するためのバージョンカウンタ
+  const [dataVersion, setDataVersion] = useState(0);
 
   // タスク一覧取得
   useEffect(() => {
@@ -99,7 +101,7 @@ const Dashboard = () => {
       if (quickFilter !== "all") {
         const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
         const today = startOfDay(new Date());
-        const dueMs = parseDateFlexibleToEpoch(t?.due_date);
+        const dueMs = parseDateFlexibleToEpoch(t?.dueDate);
         const due = Number.isNaN(dueMs) ? null : new Date(dueMs);
         const isDone = t.status === "DONE";
         if (quickFilter === "not_done" && isDone) return false;
@@ -119,10 +121,10 @@ const Dashboard = () => {
 
     // ソート
     list.sort((a, b) => {
-      const dueA = parseDateFlexibleToEpoch(a?.due_date);
-      const dueB = parseDateFlexibleToEpoch(b?.due_date);
-      const createdA = parseDateFlexibleToEpoch(a?.created_at);
-      const createdB = parseDateFlexibleToEpoch(b?.created_at);
+      const dueA = parseDateFlexibleToEpoch(a?.dueDate);
+      const dueB = parseDateFlexibleToEpoch(b?.dueDate);
+      const createdA = parseDateFlexibleToEpoch(a?.createdAt);
+      const createdB = parseDateFlexibleToEpoch(b?.createdAt);
 
       switch (sort) {
         case "due_date_asc":
@@ -165,7 +167,7 @@ const Dashboard = () => {
     let sCount = 0; // 期限が近い（3日以内, 未完了のみ）
 
     for (const t of allTasks) {
-      const dueMs = parseDateFlexibleToEpoch(t.due_date);
+      const dueMs = parseDateFlexibleToEpoch(t.dueDate);
       const due = Number.isNaN(dueMs) ? null : new Date(dueMs);
       const isDone = t.status === "DONE";
 
@@ -188,9 +190,10 @@ const Dashboard = () => {
   // タスク更新ハンドラ
   const handleUpdate = async (id: number, input: TaskInput) => {
     try {
-      await updateTask(id, input);
-      const tasks = await fetchTasks();
-      setAllTasks(tasks);
+  await updateTask(id, input);
+  const tasks = await fetchTasks();
+  setAllTasks(tasks);
+  setDataVersion(v => v + 1);
       setShowForm(false);
       setEditingTask(null);
     } catch (error) {
@@ -201,9 +204,10 @@ const Dashboard = () => {
   // タスク作成ハンドラ
   const handleCreated = async (input: TaskInput) => {
     try {
-      await createTask(input);
-      const tasks = await fetchTasks();
-      setAllTasks(tasks);
+  await createTask(input);
+  const tasks = await fetchTasks();
+  setAllTasks(tasks);
+  setDataVersion(v => v + 1);
       setShowForm(false);
       setEditingTask(null);
     } catch (error) {
@@ -214,9 +218,10 @@ const Dashboard = () => {
   // タスク削除ハンドラ
   const handleDelete = async (taskId: number) => {
     try {
-      await deleteTask(taskId);
-      const tasks = await fetchTasks();
-      setAllTasks(tasks);
+  await deleteTask(taskId);
+  const tasks = await fetchTasks();
+  setAllTasks(tasks);
+  setDataVersion(v => v + 1);
     } catch (e) {
       console.error("削除エラー:", e);
     }
@@ -237,7 +242,7 @@ const Dashboard = () => {
                 }}
               >新規</button>
               <button
-                className="btn btn-outline-secondary"
+                className="btn btn-danger"
                 onClick={async () => {
                   await logout();
                   navigate("/login");
@@ -341,7 +346,7 @@ const Dashboard = () => {
         </div>
 
         {view === 'list' && (
-          <TaskList tasks={filteredTasks} onDelete={handleDelete} onEdit={handleEdit} />
+          <TaskList tasks={filteredTasks} onDelete={handleDelete} onEdit={handleEdit} key={`list-${dataVersion}`} />
         )}
         {view === 'calendar' && (
           <>

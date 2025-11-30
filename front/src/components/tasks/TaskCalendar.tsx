@@ -55,7 +55,7 @@ const buildMonthMatrix = (month: Date): Date[][] => {
   return matrix;
 };
 
-// 指定日付とタスクdue_dateが一致するか判定
+// 指定日付とタスクdueDateが一致するか判定
 const isSameDay = (d: Date, due: string | undefined): boolean => {
   if (!due) return false;
   const ms = parseDateFlexibleToEpoch(due);
@@ -90,8 +90,8 @@ export const TaskCalendar: React.FC<TaskCalendarProps> = ({ tasks, month, onPrev
   const tasksByDate = useMemo(() => {
     const map: Record<string, Task[]> = {};
     for (const t of tasks) {
-      if (!t.due_date) continue;
-      const ms = parseDateFlexibleToEpoch(t.due_date);
+      if (!t.dueDate) continue;
+      const ms = parseDateFlexibleToEpoch(t.dueDate);
       if (Number.isNaN(ms)) continue;
       const d = new Date(ms);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -103,9 +103,9 @@ export const TaskCalendar: React.FC<TaskCalendarProps> = ({ tasks, month, onPrev
 
   // overdue判定
   const isOverdue = (task: Task): boolean => {
-    if (!task.due_date) return false;
+    if (!task.dueDate) return false;
     if (task.status === 'DONE') return false;
-    const ms = parseDateFlexibleToEpoch(task.due_date);
+    const ms = parseDateFlexibleToEpoch(task.dueDate);
     if (Number.isNaN(ms)) return false;
     const due = new Date(ms);
     const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());

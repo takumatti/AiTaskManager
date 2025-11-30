@@ -3,20 +3,22 @@ export type TaskPriority = "LOW" | "NORMAL" | "HIGH";
 
 export interface Task {
   id: number;
-  user_id: number;
+  userId: number;
+  parentTaskId?: number | null;
   title: string;
   description?: string;
-  due_date?: string; // YYYY-MM-DD形式
+  dueDate?: string; // YYYY-MM-DD形式
   priority: TaskPriority;
   status: TaskStatus;
-  created_at: string;
-  updated_at: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface TaskInput {
   title: string;
   description?: string;
   status: string;
-  due_date?: string;
+  due_date?: string; // API契約維持のため送信はsnake_case
   priority?: string;
+  ai_decompose?: boolean;
 }

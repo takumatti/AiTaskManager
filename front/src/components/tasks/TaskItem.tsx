@@ -63,7 +63,7 @@ export const TaskItem = ({
       )}
 
       <div className="task-meta">
-        <span>期限: {formatDate(task.due_date)}</span>
+  <span>期限: {formatDate(task.dueDate)}</span>
         <span>優先度: {(() => {
           switch (task.priority) {
             case "HIGH": return "高";

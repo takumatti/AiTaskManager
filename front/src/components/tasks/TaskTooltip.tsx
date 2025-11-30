@@ -23,10 +23,10 @@ export const TaskTooltip: React.FC<TaskTooltipProps> = ({ task, overdue, onEdit,
         <button type="button" className="btn-close" aria-label="閉じる" onClick={onClose}></button>
       </div>
       <div className="task-tooltip-body">
-        {task.due_date && (
+  {task.dueDate && (
           <div className="tt-row">
             <span className="tt-label">期日:</span>
-            <span className="tt-value">{task.due_date}{overdue && <span className="badge-overdue ms-1">期限超過</span>}</span>
+            <span className="tt-value">{task.dueDate}{overdue && <span className="badge-overdue ms-1">期限超過</span>}</span>
           </div>
         )}
         <div className="tt-row">
