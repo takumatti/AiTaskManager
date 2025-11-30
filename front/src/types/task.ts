@@ -21,4 +21,7 @@ export interface TaskInput {
   due_date?: string; // API契約維持のため送信はsnake_case
   priority?: string;
   ai_decompose?: boolean;
+  // 親タスクID（手動子作成用、サーバは snake/camel 両対応）
+  parent_task_id?: number;
+  parentTaskId?: number;
 }

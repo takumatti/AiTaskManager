@@ -9,10 +9,12 @@ export const TaskList = ({
   tasks,
   onDelete,
   onEdit,
+  onCreateChild,
 }: {
   tasks: Task[];
   onDelete: (id: number) => void;
   onEdit: (task: Task) => void;
+  onCreateChild?: (parentId: number) => void;
 }) => {
   const [tree, setTree] = useState<TaskTreeNode[] | null>(null);
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
@@ -85,6 +87,7 @@ export const TaskList = ({
     const isExpanded = expanded[node.id];
     const indentStyle = { marginLeft: depth * 16 };
     const canDecompose = depth < 3; // 0:root,1,2,3(=第4階層) → 第4階層では不可
+    const canCreateChild = canDecompose; // 子追加も細分化と同じ活性条件
     return (
       <div key={node.id} className={`task-tree-item ${highlightIds.has(node.id) ? "new-child-highlight" : ""}`}>
         <div className="task-tree-inner">
@@ -112,6 +115,12 @@ export const TaskList = ({
                 disabled={!canDecompose}
               >細分化</button>
             )}
+            <button
+              className="add-child-btn"
+              title={canCreateChild ? "このタスクの子タスクを手動で追加" : "階層は最大4までです"}
+              onClick={() => canCreateChild && onCreateChild && onCreateChild(node.id)}
+              disabled={!canCreateChild}
+            >子追加</button>
             <button className="delete-btn" onClick={() => handleDeleteWithConfirm(node)}>削除</button>
             </div>
           </div>
@@ -139,7 +148,23 @@ export const TaskList = ({
   });
 
   if (tree && tree.length > 0) {
-    return <div className="task-tree-container">{tree.map(n => renderNode(n, 0))}</div>;
+    return (
+      <>
+        <div className="task-annotations">
+          <div className="task-annotations-inner">
+          <div className="annotation-item">
+            <span className="anno-label anno-decompose">細分化</span>
+            <span className="anno-text">既存の子孫を作り直し、AIで親タスクを自動的に小タスクへ分割します（最大4階層）。</span>
+          </div>
+          <div className="annotation-item">
+            <span className="anno-label anno-addchild">子追加</span>
+            <span className="anno-text">選択したタスクの直下に手動で子タスクを1件ずつ追加します（最大4階層）。</span>
+          </div>
+          </div>
+        </div>
+        <div className="task-tree-container">{tree.map(n => renderNode(n, 0))}</div>
+      </>
+    );
   }
 
   // フォールバック: 旧フラット表示

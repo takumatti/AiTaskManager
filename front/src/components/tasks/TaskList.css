@@ -2,13 +2,54 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  --action-col-width: 84px; /* [子数][細分化][削除] の各列幅 */
+  --action-col-width: 68px; /* [子数][細分化][子追加][削除] の各列幅（少し縮小） */
   --row-radius: 10px;
   --row-pad-y: 8px;
   --row-pad-x: 12px;
-  --toggle-size: 28px;
+  --toggle-size: 24px; /* トグルも小型化 */
   width: 100%;
   align-items: stretch;
+}
+
+/* 注釈ブロック */
+.task-annotations {
+  margin-bottom: 8px;
+  padding: 8px 0; /* 外側は左右0でインナーに合わせる */
+}
+.task-annotations-inner {
+  padding: 8px var(--row-pad-x, 30px); /* タスク行と同じ左右余白で揃える */
+  border: 1px solid #e3e6eb; /* 枠はインナーに付けて左右端を一致 */
+  border-radius: var(--row-radius);
+  background: #f9fafb;
+  border-radius: var(--row-radius, 12px);
+  box-sizing: border-box;
+}
+.annotation-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #475467;
+}
+.annotation-item + .annotation-item {
+  margin-top: 4px;
+}
+.anno-label {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-weight: 600;
+  color: #fff;
+  font-size: 11px;
+}
+.anno-decompose {
+  background: #0d6efd;
+}
+.anno-addchild {
+  background: #198754;
+}
+.anno-text {
+  flex: 1;
 }
 .task-tree-item {
   border: 1px solid #e3e6eb;
@@ -29,37 +70,38 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto; /* 左:内容 | 右:アクション領域 */
   align-items: center;
-  column-gap: 8px;
+  column-gap: 6px; /* 右領域との隙間をやや縮小 */
   width: 100%;
 }
 .task-tree-main {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px; /* タイトル左の隙間をやや縮小 */
   min-width: 0; /* 省略記号のための縮小許可 */
 }
 
 .task-tree-actions {
   display: grid;
   grid-template-columns: repeat(
-    3,
+    4,
     var(--action-col-width)
-  ); /* [子数][細分化][削除] */
+  ); /* [子数][細分化][子追加][削除] */
   justify-content: end;
   align-items: center;
-  gap: 8px;
+  gap: 6px; /* ボタン間の隙間を縮小 */
 }
 
 .collapse-btn,
 .redecompose-btn,
+.add-child-btn,
 .delete-btn {
   border: none;
   background: #f0f2f5;
-  height: 28px;
-  padding: 0 10px;
+  height: 24px;
+  padding: 0 8px; /* 横幅も微縮 */
   border-radius: 4px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 11px; /* 可読性を維持しつつ微縮小 */
 }
 .collapse-btn:hover,
 .redecompose-btn:hover,
@@ -67,7 +109,19 @@
   background: #e2e6ea;
 }
 .redecompose-btn:disabled {
-  background: #f3f4f6;
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(60%);
+}
+
+/* 子追加ボタンの無効化スタイルを細分化と同一にする */
+.add-child-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(60%);
+}
+.add-child-btn:disabled {
+  background: #e9f2ec; /* pale greenish gray */
   color: #98a2b3;
   cursor: not-allowed;
 }
@@ -98,11 +152,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 28px;
-  min-width: 48px;
-  padding: 0 10px;
+  height: 24px;
+  min-width: 40px;
+  padding: 0 8px;
   border-radius: 9999px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   line-height: 1;
   box-shadow: 0 1px 0 rgba(13, 110, 253, 0.25);
@@ -119,8 +173,25 @@
 }
 
 .redecompose-btn,
+.add-child-btn,
 .delete-btn {
   width: 100%;
+}
+.add-child-btn {
+  background: #198754; /* success green */
+  color: #fff;
+}
+.add-child-btn:hover {
+  background: #157347; /* darker green */
+}
+
+/* 細分化ボタンは青系（primary） */
+.redecompose-btn {
+  background: #0d6efd;
+  color: #fff;
+}
+.redecompose-btn:hover {
+  background: #0b5ed7;
 }
 .delete-btn {
   background: #dc3545; /* red */
@@ -130,12 +201,12 @@
   background: #bb2d3b; /* darker red */
 }
 .redecompose-loading {
-  font-size: 12px;
+  font-size: 11px;
   color: #6c757d;
   width: 100%;
   display: inline-flex;
   justify-content: center;
-  height: 28px;
+  height: 24px;
   align-items: center;
 }
 .task-tree-children {
@@ -159,14 +230,15 @@
 /* モバイル調整 */
 @media (max-width: 600px) {
   .task-tree-container {
-    --action-col-width: 72px; /* 折返し防止のため少し狭める */
-    --toggle-size: 26px;
+    --action-col-width: 60px; /* モバイルはさらにコンパクトに */
+    --toggle-size: 22px;
   }
   .child-count-badge,
   .redecompose-btn,
-  .delete-btn {
-    height: 26px;
-    font-size: 11px;
+  .delete-btn,
+  .add-child-btn {
+    height: 22px;
+    font-size: 10px;
   }
 }
 .new-child-highlight {

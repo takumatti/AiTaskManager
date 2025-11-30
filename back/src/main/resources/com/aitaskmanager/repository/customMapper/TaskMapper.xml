@@ -39,9 +39,6 @@
     order by id asc
   </select>
 
-  <delete id="deleteChildrenByParentId" parameterType="java.lang.Integer">
-    delete from tasks where parent_task_id = #{parentTaskId}
-  </delete>
   
   <update id="updateDecomposedAt">
     update tasks set decomposed_at = now(), updated_at = now() where id = #{id} and user_id = #{userId}

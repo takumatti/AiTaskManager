@@ -68,6 +68,8 @@ const Dashboard = () => {
   const [showForm, setShowForm] = useState(false);
   // カレンダーセルから新規作成する際の初期期日
   const [initialDueDateForCreate, setInitialDueDateForCreate] = useState<string | undefined>(undefined);
+  // 手動子作成用の親ID
+  const [parentIdForCreate, setParentIdForCreate] = useState<number | undefined>(undefined);
   // 表示モード(list | calendar)
   const [view, setView] = useState<'list' | 'calendar'>("list");
   // カレンダー用の月（1日を基準）
@@ -346,7 +348,17 @@ const Dashboard = () => {
         </div>
 
         {view === 'list' && (
-          <TaskList tasks={filteredTasks} onDelete={handleDelete} onEdit={handleEdit} key={`list-${dataVersion}`} />
+          <TaskList
+            tasks={filteredTasks}
+            onDelete={handleDelete}
+            onEdit={handleEdit}
+            onCreateChild={(pid) => {
+              setEditingTask(null);
+              setParentIdForCreate(pid);
+              setShowForm(true);
+            }}
+            key={`list-${dataVersion}`}
+          />
         )}
         {view === 'calendar' && (
           <>
@@ -373,10 +385,12 @@ const Dashboard = () => {
             onCreated={editingTask ? undefined : handleCreated}
             onUpdated={editingTask ? handleUpdate : undefined}
             initialDueDate={initialDueDateForCreate}
+            parentIdForCreate={parentIdForCreate}
             onClose={() => {
               setShowForm(false);
               setEditingTask(null);
               setInitialDueDateForCreate(undefined);
+              setParentIdForCreate(undefined);
             }}
           />
         )}

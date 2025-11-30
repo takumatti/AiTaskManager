@@ -74,14 +74,6 @@ public interface TaskMapper {
     List<Tasks> selectChildrenByParentId(@Param("parentTaskId") Integer parentTaskId);
 
     /**
-     * 親タスクIDで子タスク削除（再分解前）
-     * 
-     * @param parentTaskId 親タスクID
-     * @return 削除された行数
-     */
-    int deleteChildrenByParentId(@Param("parentTaskId") Integer parentTaskId);
-
-    /**
      * 親タスクの細分化日時更新
      * 
      * @param id 親タスクID

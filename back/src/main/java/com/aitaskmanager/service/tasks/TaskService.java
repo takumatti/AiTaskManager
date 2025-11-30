@@ -78,6 +78,20 @@ public class TaskService {
         task.setPriority(TaskUtils.normalizePriority(request.getPriority()));
         task.setStatus(TaskUtils.normalizeStatus(request.getStatus()));
         task.setDueDate(TaskUtils.toSqlDate(request.getDue_date()));
+        // 手動の子タスク作成: 親IDを許容（snake/camel両対応）
+        Integer reqParentId = request.getParent_task_id() != null ? request.getParent_task_id() : request.getParentTaskId();
+        if (reqParentId != null) {
+            // 親の存在/権限を確認
+            Tasks parent = taskMapper.selectByTaskIdAndUserId(reqParentId, userId);
+            if (parent == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "親タスクが見つかりません");
+            }
+            // 深さチェック（親が深さ4なら新規子は作れない）
+            if (isMaxDepthReached(reqParentId, userId)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "階層は最大4までです");
+            }
+            task.setParentTaskId(reqParentId);
+        }
         taskMapper.insert(task); // 親タスク挿入でID確定
         log.debug("[TaskService] createTask parent inserted id={} parentTaskId={} (should be null for root)", task.getId(), task.getParentTaskId());
 
@@ -182,6 +196,20 @@ public class TaskService {
         }
         log.info("[TaskService] delete subtree node deleted id={}", parentId);
     }
+
+    /**
+     * 指定した親タスク配下（直下〜全孫以降すべて）の子孫タスクを再帰的に削除する。
+     * 親自身は削除しない。
+     * 
+     * @param parentId 親タスクID
+     * @param userId ユーザーID
+     */
+    private void deleteDescendants(int parentId, Integer userId) {
+        List<Tasks> children = taskMapper.selectChildrenByParentId(parentId);
+        for (Tasks ch : children) {
+            deleteSubtree(ch.getId(), userId);
+        }
+    }
     
     /**
      * ルートからの深さを1始まりで計算する（root=1, 子=2, 孫=3, ひ孫=4）
@@ -231,11 +259,11 @@ public class TaskService {
                 log.info("[TaskService] skip ai_decompose due to depth limit (>=4). parentId={}", parentTaskId);
                 return; // 親の更新/作成は成功させつつ子生成は行わない
             }
-            // 既存子タスクがある場合は二重生成回避
+            // 既存子タスクがある場合は再細分化：孫以下を含めて再帰削除してから再生成
             int existingChildren = taskMapper.countChildrenByParentId(parentTaskId);
             if (existingChildren > 0) {
-                log.info("[TaskService] skip ai_decompose because children already exist parentId={} existingChildren={}", parentTaskId, existingChildren);
-                return;
+                deleteDescendants(parentTaskId, userId);
+                log.info("[TaskService] ai_decompose '{}' delete existing descendants done parentId={}", mode, parentTaskId);
             }
             String baseTitle = TaskUtils.defaultString(request.getTitle(), "");
             String baseDesc = TaskUtils.defaultString(request.getDescription(), "");
@@ -253,7 +281,9 @@ public class TaskService {
                 taskMapper.insert(child);
                 log.debug("[TaskService] child inserted id={} parentTaskId={} mode={}", child.getId(), child.getParentTaskId(), mode);
             }
-            log.info("[TaskService] ai_decompose {} children generated parentId={}", children, parentTaskId);
+            // 親の細分化日時を更新
+            taskMapper.updateDecomposedAt(parentTaskId, userId);
+            log.info("[TaskService] ai_decompose {} children generated parentId={} mode={} (decomposed_at updated)", children, parentTaskId, mode);
         } catch (Exception ex) {
             log.warn("[TaskService] ai_decompose {} failed parentId={} err={}", mode, parentTaskId, ex.getMessage());
         }
@@ -337,9 +367,9 @@ public class TaskService {
             log.info("[TaskService] skip redecompose due to depth limit (>=4). parentId={}", taskId);
             return getTaskTree(username);
         }
-        // 既存子削除
-        int deleted = taskMapper.deleteChildrenByParentId(taskId);
-        log.info("[TaskService] redecompose delete children count={} parentId={}", deleted, taskId);
+        // 既存子孫を再帰削除（親は残す）
+        deleteDescendants(taskId, userId);
+        log.info("[TaskService] redecompose delete descendants done parentId={}", taskId);
         // 再生成（existingChildrenチェックはスキップするため直接ロジック）
         String baseTitle = TaskUtils.defaultString(request.getTitle(), parent.getTitle());
         String baseDesc = TaskUtils.defaultString(request.getDescription(), parent.getDescription());
@@ -356,7 +386,7 @@ public class TaskService {
             child.setDueDate(TaskUtils.toSqlDate(request.getDue_date() != null ? request.getDue_date() : (parent.getDueDate() != null ? new java.text.SimpleDateFormat("yyyy-MM-dd").format(parent.getDueDate()) : null)));
             taskMapper.insert(child);
         }
-        // 親の細分化日時更新
+    // 親の細分化日時更新
         taskMapper.updateDecomposedAt(taskId, userId);
         log.info("[TaskService] redecompose regenerated children={} parentId={}", children, taskId);
         // 最新全体ツリー返却

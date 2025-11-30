@@ -1,14 +1,19 @@
 .dashboard-filters-card {
   background: #f6f8fa;
-  border-radius: 12px;
+  border-radius: var(--row-radius, 12px);
   box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-  padding: 18px 20px 12px 20px;
-  margin-bottom: 24px;
+  /* タスクカードと左右端を揃えるため、横パディングを統一 */
+  padding: 12px var(--row-pad-x, 20px);
   width: 100%;
-  max-width: 520px;
+  /* 上部カードは少し狭めるが、左端は親に揃える */
+  border: 1px solid #e3e6eb;
+  max-width: 560px;
+  align-self: flex-start;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  /* 中央寄せではなく、左右端を親に揃える */
+  align-items: stretch;
+  box-sizing: border-box;
 }
 
 .dashboard-filters-row {
@@ -27,8 +32,8 @@
 
 @media (max-width: 600px) {
   .dashboard-filters-card {
-    padding: 10px 4px 8px 4px;
-    max-width: 100%;
+    padding: 10px var(--row-pad-x, 12px) 8px var(--row-pad-x, 12px);
+    max-width: none;
   }
   .dashboard-filters-row {
     flex-direction: column;

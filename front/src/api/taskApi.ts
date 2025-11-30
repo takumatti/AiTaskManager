@@ -69,11 +69,6 @@ export const fetchTaskTree = async (): Promise<TaskTreeNode[]> => {
   return res.data;
 };
 
-// 再分解: 親タスクIDと(任意)最新リクエスト（説明など変更可）
-export const redecomposeTask = async (taskId: number, partial: Partial<TaskInput>): Promise<TaskTreeNode[]> => {
-  const res = await apiClient.post<TaskTreeNode[]>(`${API_BASE}/${taskId}/redecompose`, partial);
-  return res.data;
-};
 
 // 細分化API
 export const decomposeTask = async (id: number, input: Partial<TaskInput>): Promise<TaskTreeNode[]> => {
