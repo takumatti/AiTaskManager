@@ -7,6 +7,10 @@ const formatDateKey = (d: Date): string => `${d.getFullYear()}-${String(d.getMon
 import { fetchHolidays } from "../../api/holidayApi";
 import type { PublicHoliday } from "../../api/holidayApi";
 
+// モジュールスコープの祝日キャッシュ（コンポーネント再マウント時も維持）
+const holidayCache: Record<number, { set: Set<string>; names: Record<string, string> }> = {};
+let holidayInFlight = false;
+
 // 柔軟な日付文字列をミリ秒に変換（Dashboardと同等ロジックを局所的に複製）
 const parseDateFlexibleToEpoch = (s?: string | null): number => {
   if (!s) return NaN;
@@ -67,14 +71,19 @@ const isSameDay = (d: Date, due: string | undefined): boolean => {
 export const TaskCalendar: React.FC<TaskCalendarProps> = ({ tasks, month, onPrev, onNext, onEdit, onCreate }) => {
   const monthMatrix = useMemo(() => buildMonthMatrix(month), [month]);
   const today = new Date();
+  const year = month.getFullYear();
   const [tooltipTaskId, setTooltipTaskId] = useState<number | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
   const calendarRef = useRef<HTMLDivElement | null>(null);
   // 祝日動的取得用（フォールバックは廃止）
-  const [holidaySet, setHolidaySet] = useState<Set<string>>(new Set());
-  const [holidayNameMap, setHolidayNameMap] = useState<Record<string,string>>({});
-  const holidayCacheRef = useRef<Record<number, { set: Set<string>; names: Record<string,string> }>>({});
-  const holidayInFlightRef = useRef<boolean>(false);
+  const [holidaySet, setHolidaySet] = useState<Set<string>>(() => {
+    const cached = holidayCache[month.getFullYear()];
+    return cached ? cached.set : new Set();
+  });
+  const [holidayNameMap, setHolidayNameMap] = useState<Record<string,string>>(() => {
+    const cached = holidayCache[month.getFullYear()];
+    return cached ? cached.names : {};
+  });
   // ローディングフラグ不要（フォールバックで即描画するため）
 
   // 日ごとタスクマップ (キー: yyyy-mm-dd)
@@ -125,23 +134,20 @@ export const TaskCalendar: React.FC<TaskCalendarProps> = ({ tasks, month, onPrev
 
   // 年が変わったタイミングで祝日取得（キャッシュ利用）
   useEffect(() => {
-    const year = month.getFullYear();
     // キャッシュヒット
-    const cached = holidayCacheRef.current[year];
+    const cached = holidayCache[year];
     if (cached) {
       setHolidaySet(cached.set);
       setHolidayNameMap(cached.names);
       return;
     }
-    let aborted = false;
-    if (holidayInFlightRef.current) {
+    if (holidayInFlight) {
       return; // 二重呼び出し抑止 (StrictMode等)
     }
-    holidayInFlightRef.current = true;
+    holidayInFlight = true;
     (async () => {
       try {
         const data: PublicHoliday[] = await fetchHolidays(year);
-        if (aborted) return;
         if (data && data.length > 0) {
           const set = new Set<string>();
           const names: Record<string,string> = {};
@@ -149,18 +155,51 @@ export const TaskCalendar: React.FC<TaskCalendarProps> = ({ tasks, month, onPrev
             set.add(h.date);
             if (h.localName) names[h.date] = h.localName;
           }
-          holidayCacheRef.current[year] = { set, names };
+          holidayCache[year] = { set, names };
           setHolidaySet(set);
           setHolidayNameMap(names);
         }
       } catch (e) {
         console.warn("祝日取得失敗", e);
       } finally {
-        holidayInFlightRef.current = false;
+        holidayInFlight = false;
       }
     })();
-    return () => { aborted = true; };
-  }, [month]);
+    return () => { holidayInFlight = false; };
+  }, [year]);
+
+  // 初回マウント時にも当年の祝日を確実に取得（キャッシュ未ヒット時のみ）
+  useEffect(() => {
+    const y = new Date().getFullYear();
+    const cached = holidayCache[y];
+    if (cached) return;
+    if (holidayInFlight) return;
+    holidayInFlight = true;
+    (async () => {
+      try {
+        const data: PublicHoliday[] = await fetchHolidays(y);
+        if (data && data.length > 0) {
+          const set = new Set<string>();
+          const names: Record<string,string> = {};
+          for (const h of data) {
+            set.add(h.date);
+            if (h.localName) names[h.date] = h.localName;
+          }
+          holidayCache[y] = { set, names };
+          // 表示中の年が初回取得年と一致していれば反映
+          if (month.getFullYear() === y) {
+            setHolidaySet(set);
+            setHolidayNameMap(names);
+          }
+        }
+      } catch (e) {
+        console.warn("祝日初期取得失敗", e);
+      } finally {
+        holidayInFlight = false;
+      }
+    })();
+    return () => { holidayInFlight = false; };
+  }, [month, year]);
 
   return (
   <div className="task-calendar-wrapper" ref={calendarRef}>
