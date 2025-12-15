@@ -54,7 +54,8 @@ import "./DashboardFilters.css";
 // ダッシュボードコンポーネント
 const Dashboard = () => {
   // 認証コンテキスト、ナビゲーション
-  const { logout } = useAuth();
+  const { logout, auth } = useAuth();
+  const isAdmin = Array.isArray(auth?.roles) && auth!.roles!.includes("ADMIN");
   const navigate = useNavigate();
   // 状態管理
   const [allTasks, setAllTasks] = useState<Task[]>([]);
@@ -313,7 +314,10 @@ const Dashboard = () => {
                     <button className="btn btn-sm btn-outline-secondary" onClick={reloadQuota} disabled={quotaLoading}>
                       {quotaLoading ? "再試行中..." : "再試行"}
                     </button>
-                    <a className="link-secondary" href="/docs/ai-setup" target="_blank" rel="noreferrer">設定手順</a>
+                    {/* 管理者のみ設定手順リンクを表示（簡易判定: ユーザー名が 'admin'）*/}
+                    {isAdmin && (
+                      <a className="link-secondary" href="/docs/ai-setup" target="_blank" rel="noreferrer">設定手順</a>
+                    )}
                   </>
                 ) : aiQuota ? (
                   aiQuota.unlimited ? (

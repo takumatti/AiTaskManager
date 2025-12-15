@@ -3,6 +3,7 @@ export interface AuthState {
   refreshToken: string | null;
   username?: string;
   userId?: number;
+  roles?: string[]; // e.g., ["ADMIN", "USER"]
 }
 
 export interface AuthContextProps {

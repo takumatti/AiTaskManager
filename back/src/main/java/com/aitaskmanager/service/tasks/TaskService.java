@@ -15,9 +15,10 @@ import com.aitaskmanager.util.SecurityUtils;
 
 import com.aitaskmanager.repository.customMapper.TaskMapper;
 import com.aitaskmanager.repository.customMapper.UserMapper;
-import com.aitaskmanager.repository.customMapper.AiUsageMapper;
+import com.aitaskmanager.repository.customMapper.CustomAiUsageMapper;
 import com.aitaskmanager.repository.customMapper.SubscriptionPlanMapper;
 import com.aitaskmanager.repository.dto.login.tasks.TaskRequest;
+import com.aitaskmanager.repository.generator.AiUsageMapper;
 import com.aitaskmanager.repository.model.SubscriptionPlans;
 import com.aitaskmanager.repository.model.Tasks;
 import com.aitaskmanager.repository.model.Users;
@@ -39,7 +40,7 @@ public class TaskService {
     private TaskMapper taskMapper;
 
     @Autowired
-    private AiUsageMapper aiUsageMapper;
+    private CustomAiUsageMapper customAiUsageMapper;
 
     @Autowired
     private SubscriptionPlanMapper subscriptionPlanMapper;
@@ -458,7 +459,7 @@ public class TaskService {
         }
         if (aiQuota != null) {
             LocalDate now = LocalDate.now(ZoneId.of("Asia/Tokyo"));
-            Integer used = aiUsageMapper.selectUsedCount(userId, now.getYear(), now.getMonthValue());
+            Integer used = customAiUsageMapper.selectUsedCount(userId, now.getYear(), now.getMonthValue());
             if (used != null && used >= aiQuota) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "今月のAI利用回数上限に達しました（" + aiQuota + "回）");
             }
@@ -477,6 +478,6 @@ public class TaskService {
      */
     private void incrementAiUsage(Integer userId) {
         LocalDate now = LocalDate.now(ZoneId.of("Asia/Tokyo"));
-        aiUsageMapper.upsertIncrement(userId, now.getYear(), now.getMonthValue());
+        customAiUsageMapper.upsertIncrement(userId, now.getYear(), now.getMonthValue());
     }
 }

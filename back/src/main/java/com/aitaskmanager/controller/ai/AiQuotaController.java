@@ -4,7 +4,6 @@ import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.checkerframework.checker.units.qual.A;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,7 +13,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.aitaskmanager.repository.customMapper.AiUsageMapper;
+import com.aitaskmanager.repository.customMapper.CustomAiUsageMapper;
 import com.aitaskmanager.repository.customMapper.SubscriptionPlanMapper;
 import com.aitaskmanager.repository.customMapper.UserMapper;
 import com.aitaskmanager.repository.model.SubscriptionPlans;
@@ -39,7 +38,7 @@ public class AiQuotaController {
     private SubscriptionPlanMapper subscriptionPlanMapper;
 
     @Autowired
-    private AiUsageMapper aiUsageMapper;
+    private CustomAiUsageMapper customAiUsageMapper;
 
     /**
      * 現在のユーザーのAIクォータ情報を取得するエンドポイント
@@ -71,7 +70,7 @@ public class AiQuotaController {
             Integer aiQuota = plan != null ? plan.getAiQuota() : 0; // null=unlimited, 0=not allowed
 
             LocalDate now = LocalDate.now();
-            int used = aiUsageMapper.selectUsedCount(user.getId(), now.getYear(), now.getMonthValue());
+            int used = customAiUsageMapper.selectUsedCount(user.getId(), now.getYear(), now.getMonthValue());
 
             Map<String, Object> body = new HashMap<>();
             body.put("planName", plan != null ? plan.getName() : "");

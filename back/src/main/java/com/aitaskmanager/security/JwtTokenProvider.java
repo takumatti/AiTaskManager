@@ -10,6 +10,10 @@ import org.springframework.stereotype.Component;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.List;
+import java.util.stream.Collectors;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 
 /**
  * JWTトークンの発行・検証を行うクラス
@@ -43,7 +47,7 @@ public class JwtTokenProvider {
      * @param userId ユーザーID
      * @return 生成されたアクセストークン
      */
-    public String generateAccessToken(String username, Integer userId) {
+    public String generateAccessToken(String username, Integer userId, List<String> roles) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + accessTokenExpiration);
 
@@ -53,6 +57,7 @@ public class JwtTokenProvider {
                 .setExpiration(expiryDate)
                 .signWith(getSigningKey(), SignatureAlgorithm.HS512);
         if (userId != null) builder.claim("uid", userId);
+        if (roles != null && !roles.isEmpty()) builder.claim("roles", roles);
 
         return builder.compact();
     }
@@ -64,7 +69,7 @@ public class JwtTokenProvider {
      * @param userId ユーザーID 
      * @return 生成されたリフレッシュトークン
      */
-    public String generateRefreshToken(String username, Integer userId) {
+    public String generateRefreshToken(String username, Integer userId, List<String> roles) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + refreshTokenExpiration);
 
@@ -74,8 +79,19 @@ public class JwtTokenProvider {
                 .setExpiration(expiryDate)
                 .signWith(getSigningKey(), SignatureAlgorithm.HS512);
         if (userId != null) builder.claim("uid", userId);
+        if (roles != null && !roles.isEmpty()) builder.claim("roles", roles);
 
         return builder.compact();
+    }
+
+    /** Authentication からロール一覧を抽出 */
+    public List<String> extractRoles(Authentication authentication) {
+        if (authentication == null) return List.of();
+        return authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .map(a -> a != null ? a.replaceFirst("^ROLE_", "") : "")
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
     }
 
     /**

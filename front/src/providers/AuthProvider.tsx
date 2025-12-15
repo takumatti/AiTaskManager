@@ -17,30 +17,57 @@ import { AxiosError } from "axios";
 
 interface Props { children: ReactNode }
 
+// JWTのペイロードを安全にデコードする簡易関数
+function decodeJwt(token: string | null): Record<string, unknown> | null {
+  if (!token) return null;
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  try {
+    const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const json = JSON.parse(atob(payload));
+    return json as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
 export const AuthProvider = ({ children }: Props) => {
-  const [auth, setAuthState] = useState<AuthState>({ accessToken: null, refreshToken: null, username: undefined, userId: undefined });
+  const [auth, setAuthState] = useState<AuthState>({ accessToken: null, refreshToken: null, username: undefined, userId: undefined, roles: undefined });
   const [error, setError] = useState("");
 
   useEffect(() => {
     const accessToken = localStorage.getItem("accessToken");
     const refreshToken = localStorage.getItem("refreshToken");
     const username = localStorage.getItem("username") || undefined;
-    const userIdStr = localStorage.getItem("userId");
+  const userIdStr = localStorage.getItem("userId");
+  const rolesStr = localStorage.getItem("roles");
+  const roles = rolesStr ? JSON.parse(rolesStr) as string[] : undefined;
     const userId = userIdStr ? Number(userIdStr) : undefined;
 
     if (accessToken && refreshToken) {
-      setTimeout(() => setAuthState({ accessToken, refreshToken, username, userId }), 0);
+      setTimeout(() => setAuthState({ accessToken, refreshToken, username, userId, roles }), 0);
     }
   }, []);
 
   const setAuth = (newAuth: AuthState) => {
-    setAuthState(newAuth);
+    // accessToken がある場合は即時にロールをデコードして反映
+    let roles = newAuth.roles;
+    if (newAuth.accessToken) {
+      const payload = decodeJwt(newAuth.accessToken);
+      roles = Array.isArray(payload?.roles)
+        ? (payload!.roles as string[])
+        : (typeof payload?.role === "string" ? [payload!.role as string] : roles);
+    }
+    const nextAuth: AuthState = { ...newAuth, roles };
+    setAuthState(nextAuth);
     if (newAuth.accessToken && newAuth.refreshToken) saveTokens(newAuth.accessToken, newAuth.refreshToken);
     else clearTokens();
     if (newAuth.username) localStorage.setItem("username", newAuth.username);
     else localStorage.removeItem("username");
     if (typeof newAuth.userId === "number") localStorage.setItem("userId", String(newAuth.userId));
     else localStorage.removeItem("userId");
+    if (roles) localStorage.setItem("roles", JSON.stringify(roles));
+    else localStorage.removeItem("roles");
   };
 
   // リフレッシュトークンAPI呼び出し
@@ -51,7 +78,11 @@ export const AuthProvider = ({ children }: Props) => {
       if (!refreshToken) throw new Error("リフレッシュトークンがありません");
       const res = await apiClient.post("/api/auth/refresh", { refreshToken });
       const { accessToken, refreshToken: newRefreshToken, userId } = res.data;
-      setAuth({ ...auth, accessToken, refreshToken: newRefreshToken, userId });
+      const payload = decodeJwt(accessToken);
+      const roles = Array.isArray(payload?.roles)
+        ? (payload!.roles as string[])
+        : (typeof payload?.role === "string" ? [payload!.role as string] : undefined);
+      setAuth({ ...auth, accessToken, refreshToken: newRefreshToken, userId, roles });
     } catch (err: unknown) {
       if (isAxiosError(err) && err.response?.data?.message) {
         setError(err.response.data.message);
@@ -78,9 +109,10 @@ export const AuthProvider = ({ children }: Props) => {
         console.error("ログアウトAPIエラー:", err);
       }
     } finally {
-      setAuth({ accessToken: null, refreshToken: null });
+  setAuth({ accessToken: null, refreshToken: null, roles: undefined });
       clearTokens();
       localStorage.removeItem("username");
+  localStorage.removeItem("roles");
       try {
         if (apiClient && apiClient.defaults && apiClient.defaults.headers) {
           if (apiClient.defaults.headers.common) {

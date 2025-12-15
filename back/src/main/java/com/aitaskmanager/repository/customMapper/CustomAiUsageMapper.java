@@ -7,7 +7,7 @@ import org.apache.ibatis.annotations.Param;
  * AI利用回数に関連するデータベース操作を定義するマッパー
  */
 @Mapper
-public interface AiUsageMapper {
+public interface CustomAiUsageMapper {
     
     /** 
      * 指定されたユーザーIDと年月に基づいて使用済みのAI利用回数を取得する

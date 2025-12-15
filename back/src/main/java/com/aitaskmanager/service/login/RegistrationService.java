@@ -83,9 +83,12 @@ public class RegistrationService {
         Users saved = userMapper.selectByUserName(request.getUsername());
         Integer uid = saved != null ? saved.getId() : null;
 
-        // JWT発行 & Refresh保存
-        String accessToken = jwtTokenProvider.generateAccessToken(request.getUsername(), uid);
-        String refreshToken = jwtTokenProvider.generateRefreshToken(request.getUsername(), uid);
+        // JWT発行 & Refresh保存（ユーザーロールをクレームに含める）
+        java.util.List<String> roles = (saved != null && saved.getRole() != null)
+            ? java.util.List.of(saved.getRole())
+            : java.util.List.of("USER");
+        String accessToken = jwtTokenProvider.generateAccessToken(request.getUsername(), uid, roles);
+        String refreshToken = jwtTokenProvider.generateRefreshToken(request.getUsername(), uid, roles);
         java.util.Date refreshTokenExpireAt = jwtTokenProvider.getRefreshTokenExpiryDate();
         refreshTokenService.saveRefreshToken(request.getUsername(), refreshToken, refreshTokenExpireAt);
 

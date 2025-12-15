@@ -76,7 +76,7 @@ public class AuthController {
                 )
         );
 
-        SecurityContextHolder.getContext().setAuthentication(authentication);
+    SecurityContextHolder.getContext().setAuthentication(authentication);
 
         // ユーザーID取得（username で再取得。emailログイン時は既に user がある）
         if (user == null) {
@@ -84,9 +84,11 @@ public class AuthController {
         }
         Integer uid = user != null ? user.getId() : null;
 
-        // JWT生成（uidをクレームに含める）
-        String accessToken = jwtTokenProvider.generateAccessToken(resolvedUsername, uid);
-        String refreshToken = jwtTokenProvider.generateRefreshToken(resolvedUsername, uid);
+    // ロール抽出
+    var roles = jwtTokenProvider.extractRoles(authentication);
+    // JWT生成（uid/rolesをクレームに含める）
+    String accessToken = jwtTokenProvider.generateAccessToken(resolvedUsername, uid, roles);
+    String refreshToken = jwtTokenProvider.generateRefreshToken(resolvedUsername, uid, roles);
 
         // RefreshToken の有効期限取得
         Date refreshTokenExpireAt = jwtTokenProvider.getRefreshTokenExpiryDate();
@@ -125,9 +127,11 @@ public class AuthController {
         String username = refreshTokenService.validateRefreshToken(request.getRefreshToken());
         Integer uid = jwtTokenProvider.getUserIdFromToken(request.getRefreshToken());
 
-        // 新トークン発行
-        String newAccessToken = jwtTokenProvider.generateAccessToken(username, uid);
-        String newRefreshToken = jwtTokenProvider.generateRefreshToken(username, uid);
+    // 新トークン発行（現在の認証情報からロール抽出）
+    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+    var roles = jwtTokenProvider.extractRoles(authentication);
+    String newAccessToken = jwtTokenProvider.generateAccessToken(username, uid, roles);
+    String newRefreshToken = jwtTokenProvider.generateRefreshToken(username, uid, roles);
 
         // RefreshToken の有効期限取得
         Date refreshTokenExpireAt = jwtTokenProvider.getRefreshTokenExpiryDate();
