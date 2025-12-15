@@ -16,9 +16,8 @@ import com.aitaskmanager.util.SecurityUtils;
 import com.aitaskmanager.repository.customMapper.TaskMapper;
 import com.aitaskmanager.repository.customMapper.UserMapper;
 import com.aitaskmanager.repository.customMapper.CustomAiUsageMapper;
-import com.aitaskmanager.repository.customMapper.SubscriptionPlanMapper;
 import com.aitaskmanager.repository.dto.login.tasks.TaskRequest;
-import com.aitaskmanager.repository.generator.AiUsageMapper;
+import com.aitaskmanager.repository.generator.SubscriptionPlansMapper;
 import com.aitaskmanager.repository.model.SubscriptionPlans;
 import com.aitaskmanager.repository.model.Tasks;
 import com.aitaskmanager.repository.model.Users;
@@ -43,7 +42,7 @@ public class TaskService {
     private CustomAiUsageMapper customAiUsageMapper;
 
     @Autowired
-    private SubscriptionPlanMapper subscriptionPlanMapper;
+    private SubscriptionPlansMapper subscriptionPlansMapper;
 
     @Autowired
     private OpenAiDecomposeService openAiDecomposeService;
@@ -450,7 +449,7 @@ public class TaskService {
         Integer planId = u.getPlanId();
         Integer aiQuota = 0; // デフォルトは無料: 0回
         if (planId != null) {
-            SubscriptionPlans plan = subscriptionPlanMapper.selectById(planId);
+            SubscriptionPlans plan = subscriptionPlansMapper.selectByPrimaryKey(planId);
             if (plan != null) aiQuota = plan.getAiQuota();
         }
         // null は無制限

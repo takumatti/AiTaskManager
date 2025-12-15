@@ -46,7 +46,7 @@ import { TaskLegend } from "../components/tasks/TaskLegend";
 import { TaskFilters } from "../components/tasks/TaskFilters";
 import { TaskSort } from "../components/tasks/TaskSort";
 import { TaskCreateForm } from "../components/tasks/TaskCreateForm";
-import { fetchAiQuotaStatus, type AiQuotaStatus } from "../api/aiApi";
+import { fetchAiQuotaStatus, type AiQuotaStatus, fetchPlans, changePlan, type SubscriptionPlan } from "../api/aiApi";
 // スタイル
 import "./Dashboard.css";
 import "./DashboardFilters.css";
@@ -86,6 +86,10 @@ const Dashboard = () => {
   const [aiError, setAiError] = useState<string | null>(null);
   const [quotaLoading, setQuotaLoading] = useState(false);
   const [showPlanModal, setShowPlanModal] = useState(false);
+  const [plans, setPlans] = useState<SubscriptionPlan[] | null>(null);
+  const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
+  const [planLoading, setPlanLoading] = useState(false);
+  const [planError, setPlanError] = useState<string | null>(null);
 
   // タスク一覧取得
   useEffect(() => {
@@ -119,6 +123,28 @@ const Dashboard = () => {
     }
   };
   useEffect(() => { void reloadQuota(); }, []);
+
+  // プラン一覧取得（モーダル表示時）
+  useEffect(() => {
+    const loadPlans = async () => {
+      if (!showPlanModal) return;
+      setPlanLoading(true);
+      setPlanError(null);
+      try {
+        const list = await fetchPlans();
+        setPlans(list);
+        // 既存プランに合わせて初期選択（名前一致 or 最初の要素）
+        const currentName = aiQuota?.planName || "";
+        const found = list.find(p => p.name === currentName);
+        setSelectedPlanId(found ? found.id : (list[0]?.id ?? null));
+      } catch {
+        setPlanError("プラン一覧の取得に失敗しました");
+      } finally {
+        setPlanLoading(false);
+      }
+    };
+    void loadPlans();
+  }, [showPlanModal, aiQuota?.planName]);
 
   // フィルタ＆ソート
   const filteredTasks = useMemo(() => {
@@ -470,7 +496,7 @@ const Dashboard = () => {
         )}
       </div>
 
-      {/* プラン変更モーダル（スケルトン） */}
+      {/* プラン変更モーダル */}
       {showPlanModal && (
         <div className="modal d-block" tabIndex={-1}>
           <div className="modal-dialog">
@@ -480,26 +506,47 @@ const Dashboard = () => {
                 <button type="button" className="btn-close" onClick={() => setShowPlanModal(false)}></button>
               </div>
               <div className="modal-body">
-                <div className="form-check">
-                  <input className="form-check-input" type="radio" name="planRadio" id="planFree" defaultChecked />
-                  <label className="form-check-label" htmlFor="planFree">Free（AI不可）</label>
-                </div>
-                <div className="form-check">
-                  <input className="form-check-input" type="radio" name="planRadio" id="planStarter" />
-                  <label className="form-check-label" htmlFor="planStarter">Starter（月間少量）</label>
-                </div>
-                <div className="form-check">
-                  <input className="form-check-input" type="radio" name="planRadio" id="planPro" />
-                  <label className="form-check-label" htmlFor="planPro">Pro（月間多め）</label>
-                </div>
-                <div className="form-check">
-                  <input className="form-check-input" type="radio" name="planRadio" id="planUnlimited" />
-                  <label className="form-check-label" htmlFor="planUnlimited">Unlimited（無制限）</label>
-                </div>
+                {planLoading ? (
+                  <div>読み込み中...</div>
+                ) : planError ? (
+                  <div className="text-danger">{planError}</div>
+                ) : (
+                  <div className="vstack gap-2">
+                    {plans?.map(p => (
+                      <div className="form-check" key={p.id}>
+                        <input
+                          className="form-check-input"
+                          type="radio"
+                          name="planRadio"
+                          id={`plan-${p.id}`}
+                          checked={selectedPlanId === p.id}
+                          onChange={() => setSelectedPlanId(p.id)}
+                        />
+                        <label className="form-check-label" htmlFor={`plan-${p.id}`}>
+                          {p.name}（{p.aiQuota === null ? "無制限" : `月${p.aiQuota}回`}）
+                        </label>
+                      </div>
+                    ))}
+                    {!plans?.length && <div className="text-muted">プランがありません</div>}
+                  </div>
+                )}
               </div>
               <div className="modal-footer">
                 <button className="btn btn-secondary" onClick={() => setShowPlanModal(false)}>閉じる</button>
-                <button className="btn btn-primary" onClick={() => { /* TODO: backend POST /api/subscriptions/change */ setShowPlanModal(false); }}>適用</button>
+                <button
+                  className="btn btn-primary"
+                  disabled={!selectedPlanId}
+                  onClick={async () => {
+                    if (!selectedPlanId) return;
+                    try {
+                      await changePlan(selectedPlanId);
+                      await reloadQuota();
+                      setShowPlanModal(false);
+                    } catch {
+                      alert("プラン変更に失敗しました");
+                    }
+                  }}
+                >適用</button>
               </div>
             </div>
           </div>

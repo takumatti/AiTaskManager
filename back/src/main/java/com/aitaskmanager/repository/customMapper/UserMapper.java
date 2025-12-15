@@ -52,4 +52,8 @@ public interface UserMapper {
      */
     Users selectById(Integer id);
 
+    /** ユーザーのプランIDを更新 */
+    void updatePlanId(@org.apache.ibatis.annotations.Param("userId") Integer userId,
+                      @org.apache.ibatis.annotations.Param("planId") Integer planId);
+
 }

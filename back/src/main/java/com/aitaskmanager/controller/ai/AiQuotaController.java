@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.aitaskmanager.repository.customMapper.CustomAiUsageMapper;
-import com.aitaskmanager.repository.customMapper.SubscriptionPlanMapper;
+import com.aitaskmanager.repository.generator.SubscriptionPlansMapper;
 import com.aitaskmanager.repository.customMapper.UserMapper;
 import com.aitaskmanager.repository.model.SubscriptionPlans;
 import com.aitaskmanager.repository.model.Users;
@@ -35,7 +35,7 @@ public class AiQuotaController {
     private UserMapper userMapper;
 
     @Autowired
-    private SubscriptionPlanMapper subscriptionPlanMapper;
+    private SubscriptionPlansMapper subscriptionPlansMapper;
 
     @Autowired
     private CustomAiUsageMapper customAiUsageMapper;
@@ -65,7 +65,7 @@ public class AiQuotaController {
             }
 
             Integer planId = user.getPlanId();
-            SubscriptionPlans plan = planId != null ? subscriptionPlanMapper.selectById(planId) : null;
+            SubscriptionPlans plan = planId != null ? subscriptionPlansMapper.selectByPrimaryKey(planId) : null;
             // プランが無い場合はAI不可扱い（0）
             Integer aiQuota = plan != null ? plan.getAiQuota() : 0; // null=unlimited, 0=not allowed
 
