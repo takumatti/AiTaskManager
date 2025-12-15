@@ -45,4 +45,11 @@ public interface UserMapper {
      */
     void insertUser(Users user);
 
+    /**
+     * ユーザーIDでユーザ取得
+     * @param id ユーザーID
+     * @return ユーザ情報
+     */
+    Users selectById(Integer id);
+
 }

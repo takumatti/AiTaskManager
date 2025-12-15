@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aitaskmanager.repository.customMapper.AiUsageMapper">
+  <select id="selectUsedCount" resultType="java.lang.Integer">
+    SELECT used_count FROM ai_usage
+    WHERE user_id = #{userId} AND year = #{year} AND month = #{month}
+  </select>
+  <insert id="upsertIncrement">
+    INSERT INTO ai_usage (user_id, year, month, used_count, updated_at)
+    VALUES (#{userId}, #{year}, #{month}, 1, now())
+    ON CONFLICT (user_id, year, month)
+    DO UPDATE SET used_count = ai_usage.used_count + 1, updated_at = now()
+  </insert>
+</mapper>

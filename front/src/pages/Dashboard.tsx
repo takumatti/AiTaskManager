@@ -46,6 +46,7 @@ import { TaskLegend } from "../components/tasks/TaskLegend";
 import { TaskFilters } from "../components/tasks/TaskFilters";
 import { TaskSort } from "../components/tasks/TaskSort";
 import { TaskCreateForm } from "../components/tasks/TaskCreateForm";
+import { fetchAiQuotaStatus, type AiQuotaStatus } from "../api/aiApi";
 // スタイル
 import "./Dashboard.css";
 import "./DashboardFilters.css";
@@ -79,6 +80,11 @@ const Dashboard = () => {
   });
   // 子コンポーネントへ更新を通知するためのバージョンカウンタ
   const [dataVersion, setDataVersion] = useState(0);
+  // AIクオータ表示用
+  const [aiQuota, setAiQuota] = useState<AiQuotaStatus | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [quotaLoading, setQuotaLoading] = useState(false);
+  const [showPlanModal, setShowPlanModal] = useState(false);
 
   // タスク一覧取得
   useEffect(() => {
@@ -92,6 +98,26 @@ const Dashboard = () => {
     };
     load();
   }, []);
+
+  // AIクオータ取得
+  const reloadQuota = async () => {
+    setQuotaLoading(true);
+    try {
+      const status = await fetchAiQuotaStatus();
+      setAiQuota(status);
+      setAiError(null);
+    } catch (e: unknown) {
+      const respStatus = (e as { response?: { status?: number } })?.response?.status;
+      if (respStatus === 503) {
+        setAiError("AI連携が未設定です。管理者に連絡するか、OPENAI_API_KEY を設定してください。");
+      } else {
+        setAiError("AI利用状況の取得に失敗しました。");
+      }
+    } finally {
+      setQuotaLoading(false);
+    }
+  };
+  useEffect(() => { void reloadQuota(); }, []);
 
   // フィルタ＆ソート
   const filteredTasks = useMemo(() => {
@@ -252,12 +278,56 @@ const Dashboard = () => {
               >ログアウト</button>
             </div>
           </div>
+          {/* タイトル直下の中央揃えエラー表示 */}
+          {aiError && (
+            <div style={{ textAlign: "center", color: "#b00020", padding: "4px 0" }}>
+              <span style={{ fontSize: "0.9rem" }}>{aiError}</span>
+            </div>
+          )}
           <div className="dashboard-header-sub">
             <div className="dashboard-view-toggle-right">
               <button
                 className="btn btn-primary"
                 onClick={() => setView(view === 'list' ? 'calendar' : 'list')}
-              >{view === 'list' ? 'カレンダー表示' : 'リスト表示'}</button>
+                style={{ fontSize: "0.9rem", lineHeight: 1.0, paddingTop: 2, paddingBottom: 2 }}
+              >
+                {view === 'list' ? (
+                  <>
+                    <div>カレンダー</div>
+                    <div>表示</div>
+                  </>
+                ) : (
+                  <>
+                    <div>リスト</div>
+                    <div>表示</div>
+                  </>
+                )}
+              </button>
+            </div>
+            {/* AIクオータ表示（右寄せの隣に薄いテキスト） */}
+            <div style={{ marginLeft: "auto", paddingLeft: 12, color: "#666", maxWidth: 360 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {aiError ? (
+                  <>
+                    {/* 右側ではテキストは省略し、操作系のみ */}
+                    <button className="btn btn-sm btn-outline-secondary" onClick={reloadQuota} disabled={quotaLoading}>
+                      {quotaLoading ? "再試行中..." : "再試行"}
+                    </button>
+                    <a className="link-secondary" href="/docs/ai-setup" target="_blank" rel="noreferrer">設定手順</a>
+                  </>
+                ) : aiQuota ? (
+                  aiQuota.unlimited ? (
+                    <span>AI利用状況: 無制限（{aiQuota.planName}）</span>
+                  ) : (
+                    <span>AI利用状況: 残り {aiQuota.remaining} 回（{aiQuota.planName}）</span>
+                  )
+                ) : (
+                  <span>AI利用状況: 取得中...</span>
+                )}
+                <button className="btn btn-sm btn-outline-primary" onClick={() => setShowPlanModal(true)}>
+                  プラン変更
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -395,6 +465,42 @@ const Dashboard = () => {
           />
         )}
       </div>
+
+      {/* プラン変更モーダル（スケルトン） */}
+      {showPlanModal && (
+        <div className="modal d-block" tabIndex={-1}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">プランを選択</h5>
+                <button type="button" className="btn-close" onClick={() => setShowPlanModal(false)}></button>
+              </div>
+              <div className="modal-body">
+                <div className="form-check">
+                  <input className="form-check-input" type="radio" name="planRadio" id="planFree" defaultChecked />
+                  <label className="form-check-label" htmlFor="planFree">Free（AI不可）</label>
+                </div>
+                <div className="form-check">
+                  <input className="form-check-input" type="radio" name="planRadio" id="planStarter" />
+                  <label className="form-check-label" htmlFor="planStarter">Starter（月間少量）</label>
+                </div>
+                <div className="form-check">
+                  <input className="form-check-input" type="radio" name="planRadio" id="planPro" />
+                  <label className="form-check-label" htmlFor="planPro">Pro（月間多め）</label>
+                </div>
+                <div className="form-check">
+                  <input className="form-check-input" type="radio" name="planRadio" id="planUnlimited" />
+                  <label className="form-check-label" htmlFor="planUnlimited">Unlimited（無制限）</label>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setShowPlanModal(false)}>閉じる</button>
+                <button className="btn btn-primary" onClick={() => { /* TODO: backend POST /api/subscriptions/change */ setShowPlanModal(false); }}>適用</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -29,4 +29,10 @@
     INSERT INTO users (username, email, password, role, plan_id, is_active)
     VALUES (#{username}, #{email}, #{password}, #{role}, #{planId}, #{isActive})
   </insert>
+
+  <select id="selectById" parameterType="java.lang.Integer" resultType="com.aitaskmanager.repository.model.Users">
+    select id, username, email, password, role, plan_id, is_active, created_at, updated_at
+    from users
+    where id = #{id}
+  </select>
 </mapper>

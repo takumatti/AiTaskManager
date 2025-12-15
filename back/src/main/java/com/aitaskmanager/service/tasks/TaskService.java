@@ -1,5 +1,7 @@
 package com.aitaskmanager.service.tasks;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.TimeZone;
 import java.text.SimpleDateFormat;
@@ -13,10 +15,14 @@ import com.aitaskmanager.util.SecurityUtils;
 
 import com.aitaskmanager.repository.customMapper.TaskMapper;
 import com.aitaskmanager.repository.customMapper.UserMapper;
+import com.aitaskmanager.repository.customMapper.AiUsageMapper;
+import com.aitaskmanager.repository.customMapper.SubscriptionPlanMapper;
 import com.aitaskmanager.repository.dto.login.tasks.TaskRequest;
+import com.aitaskmanager.repository.model.SubscriptionPlans;
 import com.aitaskmanager.repository.model.Tasks;
 import com.aitaskmanager.repository.model.Users;
 import com.aitaskmanager.util.TaskUtils;
+import com.aitaskmanager.service.ai.OpenAiDecomposeService;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -31,6 +37,15 @@ public class TaskService {
 
     @Autowired
     private TaskMapper taskMapper;
+
+    @Autowired
+    private AiUsageMapper aiUsageMapper;
+
+    @Autowired
+    private SubscriptionPlanMapper subscriptionPlanMapper;
+
+    @Autowired
+    private OpenAiDecomposeService openAiDecomposeService;
 
     /**
      * ユーザー名に基づいてタスクを取得する
@@ -245,7 +260,7 @@ public class TaskService {
     }
 
     /**
-     * 指定親タスクの下に子タスクを生成する（AI細分化のダミー実装）
+     * 指定親タスクの下に子タスクを生成する
      * 
      * @param parentTaskId 親タスクID
      * @param userId ユーザーID
@@ -253,40 +268,54 @@ public class TaskService {
      * @param mode 呼び出しモード（create/update）
      */
     private void generateChildTasks(Integer parentTaskId, Integer userId, TaskRequest request, String mode) {
-        try {
-            // 深さ上限チェック（4階層まで）
-            if (isMaxDepthReached(parentTaskId, userId)) {
-                log.info("[TaskService] skip ai_decompose due to depth limit (>=4). parentId={}", parentTaskId);
-                return; // 親の更新/作成は成功させつつ子生成は行わない
-            }
-            // 既存子タスクがある場合は再細分化：孫以下を含めて再帰削除してから再生成
-            int existingChildren = taskMapper.countChildrenByParentId(parentTaskId);
-            if (existingChildren > 0) {
-                deleteDescendants(parentTaskId, userId);
-                log.info("[TaskService] ai_decompose '{}' delete existing descendants done parentId={}", mode, parentTaskId);
-            }
-            String baseTitle = TaskUtils.defaultString(request.getTitle(), "");
-            String baseDesc = TaskUtils.defaultString(request.getDescription(), "");
-            String[] parts = baseDesc.split("\n\n");
-            int children = Math.max(1, Math.min(3, parts.length));
-            for (int i = 0; i < children; i++) {
-                Tasks child = new Tasks();
-                child.setUserId(userId);
-                child.setParentTaskId(parentTaskId);
-                child.setTitle((baseTitle.isEmpty() ? "タスク" : baseTitle) + " - サブタスク" + (i + 1));
-                child.setDescription(i < parts.length ? parts[i] : baseDesc);
-                child.setPriority(TaskUtils.normalizePriority(request.getPriority()));
-                child.setStatus("TODO");
-                child.setDueDate(TaskUtils.toSqlDate(request.getDue_date()));
-                taskMapper.insert(child);
-                log.debug("[TaskService] child inserted id={} parentTaskId={} mode={}", child.getId(), child.getParentTaskId(), mode);
-            }
-            // 親の細分化日時を更新
-            taskMapper.updateDecomposedAt(parentTaskId, userId);
-            log.info("[TaskService] ai_decompose {} children generated parentId={} mode={} (decomposed_at updated)", children, parentTaskId, mode);
-        } catch (Exception ex) {
-            log.warn("[TaskService] ai_decompose {} failed parentId={} err={}", mode, parentTaskId, ex.getMessage());
+        // 深さ上限チェック（4階層まで）
+        if (isMaxDepthReached(parentTaskId, userId)) {
+            log.info("[TaskService] skip ai_decompose due to depth limit (>=4). parentId={}", parentTaskId);
+            return; // 親の更新/作成は成功させつつ子生成は行わない
         }
+
+        // プランのAIクォータを確認
+        enforceAiQuotaOrThrow(userId);
+
+        String baseTitle = TaskUtils.defaultString(request.getTitle(), "").trim();
+        String baseDesc = TaskUtils.defaultString(request.getDescription(), "").trim();
+        if (baseDesc.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "説明が空のため細分化できません");
+        }
+
+        // OpenAIで分解
+        List<String> items = openAiDecomposeService.decompose(baseDesc);
+        if (items == null || items.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "AIで細分化できませんでした。説明を具体的にしてください");
+        }
+
+        // 既存子タスクがある場合は再細分化：孫以下を含めて再帰削除してから再生成
+        int existingChildren = taskMapper.countChildrenByParentId(parentTaskId);
+        if (existingChildren > 0) {
+            deleteDescendants(parentTaskId, userId);
+            log.info("[TaskService] ai_decompose '{}' delete existing descendants done parentId={}", mode, parentTaskId);
+        }
+
+        int maxChildren = 12;
+        int children = Math.min(items.size(), maxChildren);
+        for (int i = 0; i < children; i++) {
+            String item = items.get(i);
+            Tasks child = new Tasks();
+            child.setUserId(userId);
+            child.setParentTaskId(parentTaskId);
+            child.setTitle((baseTitle.isEmpty() ? "タスク" : baseTitle) + " - サブタスク" + (i + 1));
+            child.setDescription(item);
+            child.setPriority(TaskUtils.normalizePriority(request.getPriority()));
+            child.setStatus("TODO");
+            child.setDueDate(TaskUtils.toSqlDate(request.getDue_date()));
+            taskMapper.insert(child);
+            log.debug("[TaskService] child inserted id={} parentTaskId={} mode={}", child.getId(), child.getParentTaskId(), mode);
+        }
+        // 親の細分化日時を更新
+        taskMapper.updateDecomposedAt(parentTaskId, userId);
+        // 利用回数をカウント
+        incrementAiUsage(userId);
+        log.info("[TaskService] ai_decompose {} children generated parentId={} mode={} (decomposed_at updated)", children, parentTaskId, mode);
     }
 
     /**
@@ -370,26 +399,84 @@ public class TaskService {
         // 既存子孫を再帰削除（親は残す）
         deleteDescendants(taskId, userId);
         log.info("[TaskService] redecompose delete descendants done parentId={}", taskId);
-        // 再生成（existingChildrenチェックはスキップするため直接ロジック）
-        String baseTitle = TaskUtils.defaultString(request.getTitle(), parent.getTitle());
-        String baseDesc = TaskUtils.defaultString(request.getDescription(), parent.getDescription());
-        String[] parts = baseDesc.split("\n\n");
-        int children = Math.max(1, Math.min(3, parts.length));
+        // プランのAIクォータを確認
+        enforceAiQuotaOrThrow(userId);
+
+        String baseTitle = TaskUtils.defaultString(request.getTitle(), parent.getTitle()).trim();
+        String baseDesc = TaskUtils.defaultString(request.getDescription(), parent.getDescription()).trim();
+        if (baseDesc.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "説明が空のため再細分化できません");
+        }
+
+        List<String> items = openAiDecomposeService.decompose(baseDesc);
+        if (items == null || items.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "AIで再細分化できませんでした。説明を具体的にしてください");
+        }
+
+        int maxChildren = 12;
+        int children = Math.min(items.size(), maxChildren);
         for (int i = 0; i < children; i++) {
+            String item = items.get(i);
             Tasks child = new Tasks();
             child.setUserId(userId);
             child.setParentTaskId(taskId);
             child.setTitle((baseTitle.isEmpty() ? "タスク" : baseTitle) + " - 再分解" + (i + 1));
-            child.setDescription(i < parts.length ? parts[i] : baseDesc);
+            child.setDescription(item);
             child.setPriority(TaskUtils.normalizePriority(request.getPriority() != null ? request.getPriority() : parent.getPriority()));
             child.setStatus("TODO");
             child.setDueDate(TaskUtils.toSqlDate(request.getDue_date() != null ? request.getDue_date() : (parent.getDueDate() != null ? new java.text.SimpleDateFormat("yyyy-MM-dd").format(parent.getDueDate()) : null)));
             taskMapper.insert(child);
         }
-    // 親の細分化日時更新
+        // 親の細分化日時更新
         taskMapper.updateDecomposedAt(taskId, userId);
+        // 利用回数をカウント
+        incrementAiUsage(userId);
         log.info("[TaskService] redecompose regenerated children={} parentId={}", children, taskId);
         // 最新全体ツリー返却
         return getTaskTree(username);
+    }
+
+    /**
+     * 指定ユーザーのAI利用クォータを確認し、超過している場合は例外をスローする
+     * 
+     * @param userId ユーザーID
+     */
+    private void enforceAiQuotaOrThrow(Integer userId) {
+        Users u = userMapper.selectById(userId);
+        if (u == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "ユーザーが存在しません");
+        }
+        Integer planId = u.getPlanId();
+        Integer aiQuota = 0; // デフォルトは無料: 0回
+        if (planId != null) {
+            SubscriptionPlans plan = subscriptionPlanMapper.selectById(planId);
+            if (plan != null) aiQuota = plan.getAiQuota();
+        }
+        // null は無制限
+        if (aiQuota != null && aiQuota <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "現在のプランではAI細分化は利用できません");
+        }
+        if (aiQuota != null) {
+            LocalDate now = LocalDate.now(ZoneId.of("Asia/Tokyo"));
+            Integer used = aiUsageMapper.selectUsedCount(userId, now.getYear(), now.getMonthValue());
+            if (used != null && used >= aiQuota) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "今月のAI利用回数上限に達しました（" + aiQuota + "回）");
+            }
+        }
+        // APIキー存在確認（OpenAI連携が有効であること）
+        String apiKey = System.getenv("OPENAI_API_KEY");
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "AI連携が未設定です（管理者へお問い合わせください）");
+        }
+    }
+
+    /**
+     * 指定ユーザーの当月のAI利用回数をインクリメントする
+     * 
+     * @param userId ユーザーID
+     */
+    private void incrementAiUsage(Integer userId) {
+        LocalDate now = LocalDate.now(ZoneId.of("Asia/Tokyo"));
+        aiUsageMapper.upsertIncrement(userId, now.getYear(), now.getMonthValue());
     }
 }

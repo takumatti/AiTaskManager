@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aitaskmanager.repository.customMapper.SubscriptionPlanMapper">
+  <resultMap id="PlanMap" type="com.aitaskmanager.repository.model.SubscriptionPlans">
+    <id column="id" property="id" />
+    <result column="name" property="name" />
+    <result column="price_monthly" property="priceMonthly" />
+    <result column="ai_quota" property="aiQuota" />
+    <result column="description" property="description" />
+    <result column="created_at" property="createdAt" />
+  </resultMap>
+  <select id="selectById" resultMap="PlanMap">
+    select id, name, price_monthly, ai_quota, description, created_at
+    from subscription_plans
+    where id = #{id}
+  </select>
+</mapper>
