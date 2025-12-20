@@ -1,4 +1,3 @@
-
 package com.aitaskmanager.controller;
 
 import org.springframework.http.HttpStatus;
@@ -8,6 +7,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -18,7 +18,12 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    // 認証失敗（BadCredentials）
+    /**
+     * 認証失敗時の例外ハンドラー
+     * 
+     * @param ex 例外オブジェクト
+     * @return レスポンスエンティティ
+     */
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<?> handleBadCredentials(BadCredentialsException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -26,7 +31,12 @@ public class GlobalExceptionHandler {
                 .body(Map.of("message", "ユーザー名またはパスワードが違います"));
     }
 
-    // ユーザーが見つからない（loadUserByUsername）
+    /**
+     * ユーザー未発見時の例外ハンドラー
+     * 
+     * @param ex 例外オブジェクト
+     * @return レスポンスエンティティ
+     */
     @ExceptionHandler(UsernameNotFoundException.class)
     public ResponseEntity<?> handleUsernameNotFound(UsernameNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -34,7 +44,24 @@ public class GlobalExceptionHandler {
                 .body(Map.of("message", "ユーザーが見つかりません"));
     }
 
-    // その他
+    /**
+     * 明示的なステータス付きの例外は、その reason をそのまま返す。
+     */
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<?> handleResponseStatus(ResponseStatusException ex) {
+        HttpStatus status = HttpStatus.valueOf(ex.getStatusCode().value());
+        String message = ex.getReason() != null ? ex.getReason() : ex.getMessage();
+        return ResponseEntity.status(status)
+                .contentType(new MediaType("application", "json", StandardCharsets.UTF_8))
+                .body(Map.of("message", message));
+    }
+
+    /**
+     * その他の例外ハンドラー
+     * 
+     * @param ex 例外オブジェクト
+     * @return レスポンスエンティティ
+     */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<?> handleGeneric(Exception ex) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

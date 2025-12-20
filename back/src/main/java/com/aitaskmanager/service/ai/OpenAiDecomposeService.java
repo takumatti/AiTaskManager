@@ -124,6 +124,7 @@ public class OpenAiDecomposeService {
     }
 
     /** プロンプト文を構築する 
+     * 
      * @param description プロジェクト説明
      * @return プロンプト文字列
      */
@@ -131,24 +132,27 @@ public class OpenAiDecomposeService {
         return "次の説明から、実行可能な開発タスクに日本語で分解してください。箇条書きにし、各要素は短い命令文1行で。JSON配列(文字列のみ)で返してください。説明:" + description;
     }
 
-    /** JSON文字列エスケープ用ユーティリティ 
-     * @param s 元文字列
+    /** JSON文字列エスケープ用ユーティリティ
+     * 
+     * @param str 元文字列
      * @return エスケープ済みJSON文字列
      */
-    private static String jsonString(String s) {
-        return '"' + s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n") + '"';
+    private static String jsonString(String str) {
+        return '"' + str.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n") + '"';
     }
 
     /** 長い文字列を切り詰めるユーティリティ（ログ用） 
-     * @param s 元文字列
+     * 
+     * @param str 元文字列
      * @return 切り詰めた文字列
      */
-    private static String truncate(String s) {
-        if (s == null) return null;
-        return s.length() > 500 ? s.substring(0, 500) + "..." : s;
+    private static String truncate(String str) {
+        if (str == null) return null;
+        return str.length() > 500 ? str.substring(0, 500) + "..." : str;
     }
 
     /** レスポンスボディからcontentフィールドを抽出する（簡易実装） 
+     * 
      * @param body レスポンスボディ文字列
      * @return contentフィールドの値
      */
@@ -163,6 +167,7 @@ public class OpenAiDecomposeService {
     }
 
     /** contentフィールドからJSON配列を解析する（簡易実装） 
+     * 
      * @param content contentフィールドの値
      * @return タスク文字列のリスト
      */

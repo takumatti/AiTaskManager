@@ -1,6 +1,7 @@
 package com.aitaskmanager.repository.customMapper;
 
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 import com.aitaskmanager.repository.model.Users;
 
@@ -12,21 +13,16 @@ import com.aitaskmanager.repository.model.Users;
 public interface UserMapper {
 
     /**
-     * ユーザー名を指定してユーザーを取得する
-     * @param username ユーザー名
-     * @return  ユーザー情報
+     * ユーザーIDでユーザ取得
+     * 
+     * @param userId ユーザーID
+     * @return ユーザ情報
      */
-    Users selectByUserName(String username);
-
-    /**
-     * ユーザー名を指定してユーザーIDを取得する
-     * @param username ユーザー名
-     * @return ユーザーID
-     */
-    Integer selectIdByUsername(String username);
+    Users selectByUserId(String userId);
 
     /**
      * メールアドレスでユーザ取得
+     * 
      * @param email メール
      * @return ユーザ情報
      */
@@ -34,6 +30,7 @@ public interface UserMapper {
 
     /**
      * メールアドレスでユーザID取得
+     * 
      * @param email メール
      * @return ユーザID
      */
@@ -41,19 +38,18 @@ public interface UserMapper {
 
     /**
      * 新規ユーザ登録
+     * 
      * @param user Users
      */
     void insertUser(Users user);
 
     /**
-     * ユーザーIDでユーザ取得
-     * @param id ユーザーID
-     * @return ユーザ情報
+     * ユーザーのサブスクリプションプランを更新する
+     * 
+     * @param userId ユーザID
+     * @param planId プランID
      */
-    Users selectById(Integer id);
-
-    /** ユーザーのプランIDを更新 */
-    void updatePlanId(@org.apache.ibatis.annotations.Param("userId") Integer userId,
-                      @org.apache.ibatis.annotations.Param("planId") Integer planId);
+    void updatePlanId(@Param("userId") String userId,
+                      @Param("planId") Integer planId);
 
 }

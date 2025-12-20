@@ -43,16 +43,17 @@ public class JwtTokenProvider {
     /**
      * アクセストークンを生成（ユーザーIDをクレームに含める）
      * 
-     * @param username ユーザー名
+     * @param resolvedUserId 画面入力情報
      * @param userId ユーザーID
+     * @param roles ユーザーロール一覧
      * @return 生成されたアクセストークン
      */
-    public String generateAccessToken(String username, Integer userId, List<String> roles) {
+    public String generateAccessToken(String resolvedUserId, Integer userId, List<String> roles) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + accessTokenExpiration);
 
         JwtBuilder builder = Jwts.builder()
-                .setSubject(username)
+                .setSubject(resolvedUserId)
                 .setIssuedAt(now)
                 .setExpiration(expiryDate)
                 .signWith(getSigningKey(), SignatureAlgorithm.HS512);
@@ -67,6 +68,7 @@ public class JwtTokenProvider {
      * 
      * @param username ユーザー名
      * @param userId ユーザーID 
+     * @param roles ユーザーロール一覧
      * @return 生成されたリフレッシュトークン
      */
     public String generateRefreshToken(String username, Integer userId, List<String> roles) {
@@ -84,7 +86,12 @@ public class JwtTokenProvider {
         return builder.compact();
     }
 
-    /** Authentication からロール一覧を抽出 */
+    /**
+     * 認証情報からロール一覧を抽出する
+     * 
+     * @param authentication 認証情報
+     * @return ロール一覧
+     */
     public List<String> extractRoles(Authentication authentication) {
         if (authentication == null) return List.of();
         return authentication.getAuthorities().stream()
@@ -104,23 +111,10 @@ public class JwtTokenProvider {
     }
 
     /**
-     * トークンからユーザー名を取得
+     * トークンからユーザーIDを取得
      * 
      * @param token JWTトークン
-     * @return ユーザー名
-     */
-    public String getUsernameFromToken(String token) {
-        Claims claims = Jwts.parserBuilder()
-                .setSigningKey(getSigningKey())
-                .build()
-                .parseClaimsJws(token)
-                .getBody();
-
-        return claims.getSubject();
-    }
-
-    /**
-     * トークンからユーザーIDを取得（uidクレーム）
+     * @return ユーザーID
      */
     public Integer getUserIdFromToken(String token) {
         Claims claims = Jwts.parserBuilder()
@@ -134,6 +128,37 @@ public class JwtTokenProvider {
         if (uid instanceof Number) return ((Number) uid).intValue();
         
         return null;
+    }
+
+    /**
+     * トークンの subject（ユーザーID: user_id）を取得
+     *
+     * @param token JWTトークン
+     * @return subject（user_id）
+     */
+    public String getUserIdStringFromToken(String token) {
+        Claims claims = Jwts.parserBuilder()
+                .setSigningKey(getSigningKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+        return claims.getSubject();
+    }
+
+    /**
+     * 任意のクレームを取得（型は呼び出し側で解釈）
+     *
+     * @param token JWTトークン
+     * @param claimName 取得したいクレームキー（例："plan_id"）
+     * @return クレーム値。存在しない場合は null
+     */
+    public Object getClaim(String token, String claimName) {
+        Claims claims = Jwts.parserBuilder()
+                .setSigningKey(getSigningKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+        return claims.get(claimName);
     }
 
     /**

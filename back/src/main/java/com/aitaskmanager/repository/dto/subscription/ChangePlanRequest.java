@@ -1,4 +1,4 @@
-package com.aitaskmanager.controller.subscription.dto;
+package com.aitaskmanager.repository.dto.subscription;
 
 import lombok.Data;
 

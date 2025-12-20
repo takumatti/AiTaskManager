@@ -25,7 +25,7 @@ public class HolidayService {
     private static final String ENDPOINT = "https://date.nager.at/api/v3/PublicHolidays/%d/JP";
     private final RestTemplate restTemplate;
 
-    // 年ごとのキャッシュ
+    /** キャッシュエントリ */
     private static class CacheEntry {
         final List<PublicHoliday> holidays;
         final Instant fetchedAt;

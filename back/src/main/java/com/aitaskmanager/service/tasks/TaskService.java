@@ -11,17 +11,20 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.aitaskmanager.util.SecurityUtils;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import com.aitaskmanager.security.AuthUtils;
 
 import com.aitaskmanager.repository.customMapper.TaskMapper;
 import com.aitaskmanager.repository.customMapper.UserMapper;
+import com.aitaskmanager.repository.dto.tasks.TaskRequest;
 import com.aitaskmanager.repository.customMapper.CustomAiUsageMapper;
-import com.aitaskmanager.repository.dto.login.tasks.TaskRequest;
 import com.aitaskmanager.repository.generator.SubscriptionPlansMapper;
 import com.aitaskmanager.repository.model.SubscriptionPlans;
 import com.aitaskmanager.repository.model.Tasks;
 import com.aitaskmanager.repository.model.Users;
 import com.aitaskmanager.util.TaskUtils;
+import com.aitaskmanager.util.LogUtil;
 import com.aitaskmanager.service.ai.OpenAiDecomposeService;
 import lombok.extern.slf4j.Slf4j;
 
@@ -48,46 +51,27 @@ public class TaskService {
     private OpenAiDecomposeService openAiDecomposeService;
 
     /**
-     * ユーザー名に基づいてタスクを取得する
+     * ユーザーIDに基づいてタスクを取得する
      *
-     * @param username ユーザー名
+     * @param userId ユーザーID
      * @return タスクのリスト
      */
-    public List<Tasks> getTasksByUsername(String username) {
-        Integer userId = SecurityUtils.getCurrentUserId();
-        if (userId == null) {
-            log.info("[TaskService] userId not found in request attributes. Fallback DB lookup username={}", username);
-            Users user = userMapper.selectByUserName(username);
-            if (user == null) {
-                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "ユーザーが存在しません");
-            }
-            userId = user.getId();
-        }
+    public List<Tasks> getTasksByUserId(Integer userId) {
         return taskMapper.selectByUserId(userId);
     }
 
     /**
      * タスクを作成する
      * 
-     * @param username ユーザー名
+     * @param userId ユーザーID
      * @param request タスク作成リクエスト
      * @return 作成されたタスク
      */
     @Transactional(rollbackFor = Exception.class)
-    public Tasks createTask(String username, TaskRequest request) {
-
-        Integer userId = SecurityUtils.getCurrentUserId();
-        if (userId == null) {
-            log.info("[TaskService] createTask fallback userId lookup username={}", username);
-            Users user = userMapper.selectByUserName(username);
-            if (user == null) {
-                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "ユーザーが存在しません");
-            }
-            userId = user.getId();
-        }
-
+    public Tasks createTask(Integer userId, TaskRequest request) {
+        LogUtil.service(TaskService.class, "tasks.create", "userId=" + userId, "started");
         Tasks task = new Tasks();
-        task.setUserId(userId);
+        task.setUserSid(userId);
         task.setTitle(TaskUtils.defaultString(request.getTitle(), ""));
         task.setDescription(TaskUtils.defaultString(request.getDescription(), ""));
         task.setPriority(TaskUtils.normalizePriority(request.getPriority()));
@@ -105,14 +89,15 @@ public class TaskService {
             if (isMaxDepthReached(reqParentId, userId)) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "階層は最大4までです");
             }
-            task.setParentTaskId(reqParentId);
+            task.setParentTaskSid(reqParentId);
         }
         taskMapper.insert(task); // 親タスク挿入でID確定
-        log.debug("[TaskService] createTask parent inserted id={} parentTaskId={} (should be null for root)", task.getId(), task.getParentTaskId());
+        log.debug("[TaskService] createTask parent inserted id={} parentTaskId={} (should be null for root)", task.getTaskSid(), task.getParentTaskSid());
 
         if (Boolean.TRUE.equals(request.getAi_decompose())) {
-            generateChildTasks(task.getId(), userId, request, "create");
+            generateChildTasks(task.getTaskSid(), userId, request, "create");
         }
+        LogUtil.service(TaskService.class, "tasks.create", "taskId=" + task.getTaskSid() + " userId=" + userId, "completed");
         return task;
     }
 
@@ -121,21 +106,12 @@ public class TaskService {
      * 
      * @param taskId タスクID
      * @param request タスク更新リクエスト
-     * @param username ユーザー名
+     * @param userId ユーザーID
      * @return 更新されたタスク
      */
     @Transactional(rollbackFor = Exception.class)
-    public Tasks updateTask(int taskId, TaskRequest request, String username) {
-
-        Integer userId = SecurityUtils.getCurrentUserId();
-        if (userId == null) {
-            log.info("[TaskService] updateTask fallback userId lookup username={}", username);
-            userId = userMapper.selectIdByUsername(username);
-        }
-        if (userId == null) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "ユーザーが存在しません");
-        }
-
+    public Tasks updateTask(int taskId, TaskRequest request, Integer userId) {
+        LogUtil.service(TaskService.class, "tasks.update", "taskId=" + taskId + " userId=" + userId, "started");
         // 既存タスクを取得し parentTaskId を保持（親子関係の喪失防止）
         Tasks existing = taskMapper.selectByTaskIdAndUserId(taskId, userId);
         if (existing == null) {
@@ -143,14 +119,14 @@ public class TaskService {
         }
 
         Tasks task = new Tasks();
-        task.setId(taskId);
-        task.setUserId(userId);
+        task.setTaskSid(taskId);
+        task.setUserSid(userId);
         task.setTitle(TaskUtils.defaultString(request.getTitle(), ""));
         task.setDescription(TaskUtils.defaultString(request.getDescription(), ""));
         task.setPriority(TaskUtils.normalizePriority(request.getPriority()));
         task.setStatus(TaskUtils.normalizeStatus(request.getStatus()));
         task.setDueDate(TaskUtils.toSqlDate(request.getDue_date()));
-        task.setParentTaskId(existing.getParentTaskId());
+        task.setParentTaskSid(existing.getParentTaskSid());
 
         int update = taskMapper.update(task);
 
@@ -164,7 +140,7 @@ public class TaskService {
         }
 
         Tasks result = taskMapper.selectByTaskIdAndUserId(taskId, userId);
-        log.debug("[TaskService] updateTask completed id={} parentTaskId={} ai_decompose={}", taskId, result.getParentTaskId(), request.getAi_decompose());
+        LogUtil.service(TaskService.class, "tasks.update", "taskId=" + taskId + " userId=" + userId, "completed");
         return result;
     }
 
@@ -173,22 +149,28 @@ public class TaskService {
      * タスクを削除する
      * 
      * @param taskId タスクID
-     * @param username ユーザー名
+     * @param userId ユーザーID
      */
     @Transactional(rollbackFor = Exception.class)
-    public void deleteTask(int taskId, String username) {
+    public void deleteTask(int taskId, Integer userId) {
+        LogUtil.service(TaskService.class, "tasks.delete", "taskId=" + taskId + " userId=" + userId, "started");
+        try {
+            if (userId == null) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "ユーザーが存在しません");
+            }
 
-        Integer userId = SecurityUtils.getCurrentUserId();
-        if (userId == null) {
-            log.info("[TaskService] deleteTask fallback userId lookup username={}", username);
-            userId = userMapper.selectIdByUsername(username);
+            // 再帰的にサブツリー削除（子→孫→...→親の順）
+            deleteSubtree(taskId, userId);
+            LogUtil.service(TaskService.class, "tasks.delete", "taskId=" + taskId + " userId=" + userId, "completed");
+        } catch (ResponseStatusException ex) {
+            // 既に意味のあるステータス/メッセージが設定されているのでそのまま投げ直す
+            throw ex;
+        } catch (Exception ex) {
+            log.error("[Service] tasks.delete unexpected-error taskId={} userId={}", taskId, userId, ex);
+            // 予期せぬ例外はメッセージを一般化して返す（フロントが表示可能）
+            String msg = (ex.getMessage() != null && !ex.getMessage().isBlank()) ? ex.getMessage() : "削除に失敗しました";
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, msg);
         }
-        if (userId == null) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "ユーザーが存在しません");
-        }
-
-        // 再帰的にサブツリー削除（子→孫→...→親の順）
-        deleteSubtree(taskId, userId);
     }
 
     /**
@@ -200,12 +182,14 @@ public class TaskService {
     private void deleteSubtree(int parentId, Integer userId) {
         // 直下の子を取得
         List<Tasks> children = taskMapper.selectChildrenByParentId(parentId);
+        log.debug("[TaskService] deleteSubtree parentId={} userId={} childrenCount={}", parentId, userId, (children != null ? children.size() : 0));
         for (Tasks ch : children) {
             // 子のサブツリーを先に削除
-            deleteSubtree(ch.getId(), userId);
+            deleteSubtree(ch.getTaskSid(), userId);
         }
         // 直下の子は既に削除済みなので最後に親を削除
         int deleted = taskMapper.deleteByIdAndUserId(parentId, userId);
+        log.debug("[TaskService] deleteSubtree delete parentId={} userId={} deletedRows={}", parentId, userId, deleted);
         if (deleted == 0) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "タスクが見つからないか権限がありません");
         }
@@ -222,7 +206,7 @@ public class TaskService {
     private void deleteDescendants(int parentId, Integer userId) {
         List<Tasks> children = taskMapper.selectChildrenByParentId(parentId);
         for (Tasks ch : children) {
-            deleteSubtree(ch.getId(), userId);
+            deleteSubtree(ch.getTaskSid(), userId);
         }
     }
     
@@ -242,7 +226,7 @@ public class TaskService {
             Tasks t = taskMapper.selectByTaskIdAndUserId(currentId, userId);
             if (t == null) break;
             depth++;
-            currentId = t.getParentTaskId();
+            currentId = t.getParentTaskSid();
         }
         return depth;
     }
@@ -301,15 +285,15 @@ public class TaskService {
         for (int i = 0; i < children; i++) {
             String item = items.get(i);
             Tasks child = new Tasks();
-            child.setUserId(userId);
-            child.setParentTaskId(parentTaskId);
+            child.setUserSid(userId);
+            child.setParentTaskSid(parentTaskId);
             child.setTitle((baseTitle.isEmpty() ? "タスク" : baseTitle) + " - サブタスク" + (i + 1));
             child.setDescription(item);
             child.setPriority(TaskUtils.normalizePriority(request.getPriority()));
             child.setStatus("TODO");
             child.setDueDate(TaskUtils.toSqlDate(request.getDue_date()));
             taskMapper.insert(child);
-            log.debug("[TaskService] child inserted id={} parentTaskId={} mode={}", child.getId(), child.getParentTaskId(), mode);
+            log.debug("[TaskService] child inserted id={} parentTaskId={} mode={}", child.getTaskSid(), child.getParentTaskSid(), mode);
         }
         // 親の細分化日時を更新
         taskMapper.updateDecomposedAt(parentTaskId, userId);
@@ -321,18 +305,10 @@ public class TaskService {
     /**
      * 階層ツリー取得
      * 
-     * @param username ユーザー名
+     * @param userId ユーザーId
      * @return タスク階層ツリーのリスト
      */
-    public List<com.aitaskmanager.repository.dto.login.tasks.TaskTreeResponse> getTaskTree(String username) {
-        Integer userId = SecurityUtils.getCurrentUserId();
-        if (userId == null) {
-            Users user = userMapper.selectByUserName(username);
-            if (user == null){
-                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "ユーザーが存在しません");
-            }
-            userId = user.getId();
-        }
+    public List<com.aitaskmanager.repository.dto.tasks.TaskTreeResponse> getTaskTree(Integer userId) {
         List<Tasks> all = taskMapper.selectByUserId(userId);
         // ルート（parentTaskId null）を起点に再帰構築
         return buildTree(all, null);
@@ -345,18 +321,18 @@ public class TaskService {
      * @param parentId 親タスクID（nullの場合はルート）
      * @return タスク階層ツリーのリスト
      */
-    private List<com.aitaskmanager.repository.dto.login.tasks.TaskTreeResponse> buildTree(List<Tasks> all, Integer parentId) {
+    private List<com.aitaskmanager.repository.dto.tasks.TaskTreeResponse> buildTree(List<Tasks> all, Integer parentId) {
         SimpleDateFormat dueSdf = new SimpleDateFormat("yyyy/MM/dd");
         SimpleDateFormat dtSdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
         dueSdf.setTimeZone(TimeZone.getTimeZone("Asia/Tokyo"));
         dtSdf.setTimeZone(TimeZone.getTimeZone("Asia/Tokyo"));
         return all.stream()
-            .filter(t -> (parentId == null && t.getParentTaskId() == null) || (parentId != null && parentId.equals(t.getParentTaskId())))
+            .filter(t -> (parentId == null && t.getParentTaskSid() == null) || (parentId != null && parentId.equals(t.getParentTaskSid())))
             .map(t -> {
-                com.aitaskmanager.repository.dto.login.tasks.TaskTreeResponse dto = new com.aitaskmanager.repository.dto.login.tasks.TaskTreeResponse();
-                dto.setId(t.getId());
-                dto.setUserId(t.getUserId());
-                dto.setParentTaskId(t.getParentTaskId());
+                com.aitaskmanager.repository.dto.tasks.TaskTreeResponse dto = new com.aitaskmanager.repository.dto.tasks.TaskTreeResponse();
+                dto.setId(t.getTaskSid());
+                dto.setUserId(t.getUserSid());
+                dto.setParentTaskId(t.getParentTaskSid());
                 dto.setTitle(t.getTitle());
                 dto.setDescription(t.getDescription());
                 dto.setDueDate(t.getDueDate() != null ? dueSdf.format(t.getDueDate()) : null);
@@ -365,7 +341,7 @@ public class TaskService {
                 dto.setCreatedAt(dtSdf.format(t.getCreatedAt()));
                 dto.setUpdatedAt(dtSdf.format(t.getUpdatedAt()));
                 dto.setDecomposedAt(t.getDecomposedAt() != null ? dtSdf.format(t.getDecomposedAt()) : null);
-                dto.setChildren(buildTree(all, t.getId()));
+                dto.setChildren(buildTree(all, t.getTaskSid()));
                 return dto;
             }).toList();
     }
@@ -373,28 +349,21 @@ public class TaskService {
     /**
      * タスクの再細分化を行う
      * 
-     * @param username ユーザー名
+     * @param userId ユーザーID
      * @param taskId タスクID
      * @param request タスクリクエスト
      * @return 最新のタスク階層ツリーのリスト
      */
     @Transactional(rollbackFor = Exception.class)
-    public List<com.aitaskmanager.repository.dto.login.tasks.TaskTreeResponse> redecomposeTask(String username, Integer taskId, TaskRequest request) {
-        Integer userId = SecurityUtils.getCurrentUserId();
-        if (userId == null) {
-            Users user = userMapper.selectByUserName(username);
-            if (user == null){
-                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "ユーザーが存在しません");
-            }
-            userId = user.getId();
-        }
+    public List<com.aitaskmanager.repository.dto.tasks.TaskTreeResponse> redecomposeTask(Integer userId, Integer taskId, TaskRequest request) {
+        LogUtil.service(TaskService.class, "tasks.redecompose", "taskId=" + taskId + " userId=" + userId, "started");
         // 権限確認
         Tasks parent = taskMapper.selectByTaskIdAndUserId(taskId, userId);
         if (parent == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "タスクが存在しません");
         // 深さ上限チェック（4階層まで）。親がすでに深さ4なら子の再生成は不可。
         if (isMaxDepthReached(taskId, userId)) {
             log.info("[TaskService] skip redecompose due to depth limit (>=4). parentId={}", taskId);
-            return getTaskTree(username);
+            return getTaskTree(userId);
         }
         // 既存子孫を再帰削除（親は残す）
         deleteDescendants(taskId, userId);
@@ -418,8 +387,8 @@ public class TaskService {
         for (int i = 0; i < children; i++) {
             String item = items.get(i);
             Tasks child = new Tasks();
-            child.setUserId(userId);
-            child.setParentTaskId(taskId);
+            child.setUserSid(userId);
+            child.setParentTaskSid(taskId);
             child.setTitle((baseTitle.isEmpty() ? "タスク" : baseTitle) + " - 再分解" + (i + 1));
             child.setDescription(item);
             child.setPriority(TaskUtils.normalizePriority(request.getPriority() != null ? request.getPriority() : parent.getPriority()));
@@ -431,9 +400,9 @@ public class TaskService {
         taskMapper.updateDecomposedAt(taskId, userId);
         // 利用回数をカウント
         incrementAiUsage(userId);
-        log.info("[TaskService] redecompose regenerated children={} parentId={}", children, taskId);
+        LogUtil.service(TaskService.class, "tasks.redecompose", "taskId=" + taskId + " userId=" + userId + " children=" + children, "completed");
         // 最新全体ツリー返却
-        return getTaskTree(username);
+        return getTaskTree(userId);
     }
 
     /**
@@ -442,11 +411,18 @@ public class TaskService {
      * @param userId ユーザーID
      */
     private void enforceAiQuotaOrThrow(Integer userId) {
-        Users u = userMapper.selectById(userId);
-        if (u == null) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "ユーザーが存在しません");
+        // まず SecurityContext の JWT クレームから plan_id を取得
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        Integer planId = AuthUtils.getPlanId(auth);
+        // フォールバック: principal の user_id からユーザー取得
+        if (planId == null) {
+            String principalUserId = (auth != null) ? auth.getName() : null; // subject=user_id
+            Users u = (principalUserId != null) ? userMapper.selectByUserId(principalUserId) : null;
+            if (u == null) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "ユーザーが存在しません");
+            }
+            planId = u.getPlanId();
         }
-        Integer planId = u.getPlanId();
         Integer aiQuota = 0; // デフォルトは無料: 0回
         if (planId != null) {
             SubscriptionPlans plan = subscriptionPlansMapper.selectByPrimaryKey(planId);

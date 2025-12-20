@@ -13,6 +13,7 @@ import com.aitaskmanager.service.holiday.HolidayService;
 import com.aitaskmanager.service.holiday.HolidayFetchException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
+import com.aitaskmanager.util.LogUtil;
 
 /**
  * 祝日取得APIコントローラ
@@ -32,6 +33,7 @@ public class HolidayController {
      */
     @GetMapping
     public List<PublicHoliday> get(@RequestParam(name = "year", required = true) Integer year) {
+        LogUtil.controller(HolidayController.class, "holidays.list", null, null, "invoked");
         if (year == null || year < 1900 || year > 2100) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "year parameter is invalid");
         }

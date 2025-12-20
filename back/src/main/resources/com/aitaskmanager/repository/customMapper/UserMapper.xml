@@ -1,44 +1,39 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aitaskmanager.repository.customMapper.UserMapper">
-  <update id="updatePlanId">
-    UPDATE users
-    SET plan_id = #{planId}
-    WHERE id = #{userId}
-  </update>
+  <resultMap id="UserResultMap" type="com.aitaskmanager.repository.model.Users">
+    <id column="user_sid" property="userSid" />
+    <result column="user_id" property="userId" />
+    <result column="username" property="username" />
+    <result column="email" property="email" />
+    <result column="password" property="password" />
+    <result column="role" property="role" />
+    <result column="plan_id" property="planId" />
+    <result column="is_active" property="isActive" />
+    <result column="created_at" property="createdAt" />
+    <result column="updated_at" property="updatedAt" />
+  </resultMap>
 
-  <select id="selectByUserName" parameterType="java.lang.String" resultType="com.aitaskmanager.repository.model.Users">
-    select id, username, email, password, role, plan_id, is_active, created_at, updated_at
+  <select id="selectByUserId" parameterType="java.lang.String" resultMap="UserResultMap">
+    select user_sid, user_id, username, email, password, role, plan_id, is_active, created_at, updated_at
     from users
-    where username = #{username}
+    where user_id = #{userId}
   </select>
 
-  <select id="selectByEmail" parameterType="java.lang.String" resultType="com.aitaskmanager.repository.model.Users">
-    select id, username, email, password, role, plan_id, is_active, created_at, updated_at
-    from users
-    where lower(email) = lower(#{email})
-  </select>
-
-  <select id="selectIdByUsername" parameterType="java.lang.String" resultType="java.lang.Integer">
-    select id
-    from users
-    where username = #{username}
-  </select>
-
-  <select id="selectIdByEmail" parameterType="java.lang.String" resultType="java.lang.Integer">
-    select id
+  <select id="selectByEmail" parameterType="java.lang.String" resultMap="UserResultMap">
+    select user_sid, user_id, username, email, password, role, plan_id, is_active, created_at, updated_at
     from users
     where lower(email) = lower(#{email})
   </select>
 
   <insert id="insertUser" parameterType="com.aitaskmanager.repository.model.Users">
-    INSERT INTO users (username, email, password, role, plan_id, is_active)
-    VALUES (#{username}, #{email}, #{password}, #{role}, #{planId}, #{isActive})
+     INSERT INTO users (user_id, username, email, password, role, plan_id, is_active)
+     VALUES (#{userId}, #{username}, #{email}, #{password}, #{role}, #{planId}, #{isActive})
   </insert>
 
-  <select id="selectById" parameterType="java.lang.Integer" resultType="com.aitaskmanager.repository.model.Users">
-    select id, username, email, password, role, plan_id, is_active, created_at, updated_at
-    from users
-    where id = #{id}
-  </select>
+  <update id="updatePlanId">
+    UPDATE users
+    SET plan_id = #{planId}
+    WHERE user_id = #{userId}
+  </update>
 </mapper>

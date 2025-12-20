@@ -2,9 +2,9 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aitaskmanager.repository.customMapper.TaskMapper">
   <resultMap id="BaseResultMap" type="com.aitaskmanager.repository.model.Tasks">
-    <id column="id" jdbcType="INTEGER" property="id" />
-    <result column="user_id" jdbcType="INTEGER" property="userId" />
-    <result column="parent_task_id" jdbcType="INTEGER" property="parentTaskId" />
+    <id column="task_sid" jdbcType="INTEGER" property="taskSid" />
+    <result column="user_sid" jdbcType="INTEGER" property="userSid" />
+    <result column="parent_task_sid" jdbcType="INTEGER" property="parentTaskSid" />
     <result column="title" jdbcType="VARCHAR" property="title" />
     <result column="description" jdbcType="VARCHAR" property="description" />
     <result column="due_date" jdbcType="DATE" property="dueDate" />
@@ -16,37 +16,36 @@
   </resultMap>
 
   <select id="selectByUserId" parameterType="java.lang.Integer" resultMap="BaseResultMap">
-    select id, user_id, parent_task_id, title, description, due_date, priority, status, created_at, updated_at, decomposed_at
+    select task_sid, user_sid, parent_task_sid, title, description, due_date, priority, status, created_at, updated_at, decomposed_at
     from tasks
-    where user_id = #{userId}
+    where user_sid = #{userId}
   </select>
 
   <select id="selectByTaskIdAndUserId" resultMap="BaseResultMap">
-    select id, user_id, parent_task_id, title, description, due_date, priority, status, created_at, updated_at, decomposed_at
+    select task_sid, user_sid, parent_task_sid, title, description, due_date, priority, status, created_at, updated_at, decomposed_at
     from tasks
-    where id = #{taskId}
-      and user_id = #{userId}
+    where task_sid = #{taskId}
+      and user_sid = #{userId}
   </select>
 
   <select id="countChildrenByParentId" parameterType="java.lang.Integer" resultType="int">
-    select count(1) from tasks where parent_task_id = #{parentTaskId}
+    select count(1) from tasks where parent_task_sid = #{parentTaskId}
   </select>
 
   <select id="selectChildrenByParentId" parameterType="java.lang.Integer" resultMap="BaseResultMap">
-    select id, user_id, parent_task_id, title, description, due_date, priority, status, created_at, updated_at, decomposed_at
+    select task_sid, user_sid, parent_task_sid, title, description, due_date, priority, status, created_at, updated_at, decomposed_at
     from tasks
-    where parent_task_id = #{parentTaskId}
-    order by id asc
+    where parent_task_sid = #{parentTaskId}
+    order by task_sid asc
   </select>
 
-  
   <update id="updateDecomposedAt">
-    update tasks set decomposed_at = now(), updated_at = now() where id = #{id} and user_id = #{userId}
+    update tasks set decomposed_at = now(), updated_at = now() where task_sid = #{id} and user_sid = #{userId}
   </update>
   
-  <insert id="insert" parameterType="com.aitaskmanager.repository.model.Tasks" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
-    insert into tasks (user_id, parent_task_id, title, description, due_date, priority, status, created_at, updated_at, decomposed_at)
-    values (#{userId}, #{parentTaskId}, #{title}, #{description}, #{dueDate}, #{priority}, #{status}, now(), now(), #{decomposedAt})
+  <insert id="insert" parameterType="com.aitaskmanager.repository.model.Tasks" useGeneratedKeys="true" keyProperty="taskSid" keyColumn="task_sid">
+    insert into tasks (user_sid, parent_task_sid, title, description, due_date, priority, status, created_at, updated_at, decomposed_at)
+    values (#{userSid}, #{parentTaskSid}, #{title}, #{description}, #{dueDate}, #{priority}, #{status}, now(), now(), #{decomposedAt})
   </insert>
   
   <update id="update">
@@ -57,14 +56,14 @@
       status = #{status},
       priority = #{priority},
       due_date = #{dueDate},
-      parent_task_id = #{parentTaskId},
+      parent_task_sid = #{parentTaskSid},
       decomposed_at = #{decomposedAt},
       updated_at = now()
-    where id = #{id} and user_id = #{userId}
+    where task_sid = #{taskSid} and user_sid = #{userSid}
   </update>  
 
   <delete id="deleteByIdAndUserId">
     delete from tasks
-    where id = #{id} and user_id = #{userId}
+    where task_sid = #{id} and user_sid = #{userId}
   </delete>
 </mapper>

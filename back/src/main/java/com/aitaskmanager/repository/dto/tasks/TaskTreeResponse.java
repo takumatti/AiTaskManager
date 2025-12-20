@@ -1,4 +1,4 @@
-package com.aitaskmanager.repository.dto.login.tasks;
+package com.aitaskmanager.repository.dto.tasks;
 
 import java.util.ArrayList;
 import java.util.List;

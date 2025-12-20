@@ -15,6 +15,7 @@ import com.aitaskmanager.repository.customMapper.UserMapper;
 import com.aitaskmanager.repository.model.RefreshTokens;
 import com.aitaskmanager.repository.model.Users;
 import com.aitaskmanager.security.JwtTokenProvider;
+import com.aitaskmanager.util.LogUtil;
 
 /**
  * リフレッシュトークンに関連するビジネスロジックを提供するサービス
@@ -34,29 +35,31 @@ public class RefreshTokenService {
     /**
      * リフレッシュトークンを保存する
      * 
-     * @param username ユーザー名
+     * @param userId ユーザーId
      * @param token リフレッシュトークン
      * @param expiresAt 有効期限
      */
     @Transactional(rollbackFor = Exception.class)
-    public void saveRefreshToken(String username, String token, Date expiresAt) {
-
-        Users user = userMapper.selectByUserName(username);
+    public void saveRefreshToken(String userId, String token, Date expiresAt) {
+        LogUtil.service(RefreshTokenService.class, "auth.refresh-token.save", "userId=" + userId, "started");
+        Users user = (userId != null) ? userMapper.selectByUserId(userId) : null;
 
         if (user == null) {
             throw new UsernameNotFoundException("ユーザーが見つかりません");
         }
 
         // 古いトークン削除
-        refreshTokenMapper.deleteByUserId(user.getId());
+        Integer uid = (user.getUserSid() != null) ? Math.toIntExact(user.getUserSid()) : null;
+        refreshTokenMapper.deleteByUserId(uid);
 
         // 新しいトークン保存（ハッシュ化）
         RefreshTokens refreshToken = new RefreshTokens();
-        refreshToken.setUserId(user.getId());
+        refreshToken.setUserSid(uid);
         refreshToken.setToken(hashToken(token));
         refreshToken.setExpiresAt(expiresAt);
 
         refreshTokenMapper.insert(refreshToken);
+        LogUtil.service(RefreshTokenService.class, "auth.refresh-token.save", "uid=" + uid, "completed");
     }
 
     /**
@@ -66,21 +69,23 @@ public class RefreshTokenService {
      * @return ユーザー名
      */
     public String validateRefreshToken(String refreshToken) {
+        LogUtil.service(RefreshTokenService.class, "auth.refresh-token.validate", "tokenPresent=" + (refreshToken != null), "started");
         // 1. JWTとして有効か確認
         if (!jwtTokenProvider.validateToken(refreshToken)) {
             throw new BadCredentialsException("リフレッシュトークンが不正または期限切れです");
         }
 
-        String username = jwtTokenProvider.getUsernameFromToken(refreshToken);
-
-        Users user = userMapper.selectByUserName(username);
+        // subject は user_id（文字列）
+        String userId = jwtTokenProvider.getUserIdStringFromToken(refreshToken);
+        Users user = (userId != null) ? userMapper.selectByUserId(userId) : null;
 
         if (user == null) {
             throw new UsernameNotFoundException("トークンに紐づくユーザーが存在しません");
         }
 
-        // 2. DBに保存されたトークンを取得
-        RefreshTokens savedToken = refreshTokenMapper.selectByUserId(user.getId());
+        // 2. DBに保存されたトークンを取得（内部数値ID user_sid をキー）
+        Integer uid = (user.getUserSid() != null) ? Math.toIntExact(user.getUserSid()) : null;
+        RefreshTokens savedToken = refreshTokenMapper.selectByUserId(uid);
 
         if (savedToken == null) {
             throw new BadCredentialsException("リフレッシュトークンが登録されていません");
@@ -96,24 +101,27 @@ public class RefreshTokenService {
             throw new BadCredentialsException("リフレッシュトークンが期限切れです");
         }
 
-        return username;
+        LogUtil.service(RefreshTokenService.class, "auth.refresh-token.validate", "userId=" + userId + " uid=" + uid, "completed");
+        return userId;
     }
 
     /**
      * 指定ユーザーのリフレッシュトークンを削除する
      * 
-     * @param username ユーザー名
+     * @param userId ユーザーId
      */
     @Transactional(rollbackFor = Exception.class)
-    public void deleteRefreshToken(String username) {
-
-        Users user = userMapper.selectByUserName(username);
+    public void deleteRefreshToken(String userId) {
+        LogUtil.service(RefreshTokenService.class, "auth.refresh-token.delete", "userId=" + userId, "started");
+        Users user = (userId != null) ? userMapper.selectByUserId(userId) : null;
 
         if (user == null) {
-            throw new UsernameNotFoundException("ログアウト処理に失敗しました。ユーザーが存在しません。username=" + username);
+            throw new UsernameNotFoundException("ログアウト処理に失敗しました。ユーザーが存在しません。userId=" + userId);
         }
 
-        refreshTokenMapper.deleteByUserId(user.getId());
+        Integer uid = (user.getUserSid() != null) ? Math.toIntExact(user.getUserSid()) : null;
+        refreshTokenMapper.deleteByUserId(uid);
+        LogUtil.service(RefreshTokenService.class, "auth.refresh-token.delete", "uid=" + uid, "completed");
     }
 
     /**

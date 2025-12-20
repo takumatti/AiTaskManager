@@ -19,6 +19,11 @@ public class HolidayPrefetchScheduler {
     private static final Logger log = LogManager.getLogger(HolidayPrefetchScheduler.class);
     private final HolidayService holidayService;
 
+    /**
+     * コンストラクタ
+     * 
+     * @param holidayService 祝日サービス
+     */
     public HolidayPrefetchScheduler(HolidayService holidayService) {
         this.holidayService = holidayService;
     }

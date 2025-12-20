@@ -3,12 +3,12 @@
 <mapper namespace="com.aitaskmanager.repository.customMapper.CustomAiUsageMapper">
   <select id="selectUsedCount" resultType="java.lang.Integer">
     SELECT used_count FROM ai_usage
-    WHERE user_id = #{userId} AND year = #{year} AND month = #{month}
+    WHERE user_sid = #{userId} AND year = #{year} AND month = #{month}
   </select>
   <insert id="upsertIncrement">
-    INSERT INTO ai_usage (user_id, year, month, used_count, updated_at)
+    INSERT INTO ai_usage (user_sid, year, month, used_count, updated_at)
     VALUES (#{userId}, #{year}, #{month}, 1, now())
-    ON CONFLICT (user_id, year, month)
+    ON CONFLICT (user_sid, year, month)
     DO UPDATE SET used_count = ai_usage.used_count + 1, updated_at = now()
   </insert>
 </mapper>

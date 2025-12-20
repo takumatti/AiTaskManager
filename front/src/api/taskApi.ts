@@ -1,3 +1,4 @@
+import axios, { AxiosError } from "axios";
 import apiClient from "./apiClient";
 import type { TaskInput, Task } from "../types/task";
 
@@ -91,5 +92,24 @@ export const updateTask = async (taskId: number, task: TaskInput): Promise<Task>
 
 // タスク削除API
 export const deleteTask = async (taskId: number): Promise<void> => {
-  await apiClient.delete(`${API_BASE}/${taskId}`);
+  try {
+    await apiClient.delete(`${API_BASE}/${taskId}`);
+  } catch (err) {
+    // サーバー側のJSON {message} を優先的に利用して意味のある文言を投げ直す
+    if (axios.isAxiosError(err)) {
+      const axiosErr = err as AxiosError<{ message?: string }>;
+      const serverMessage = axiosErr.response?.data?.message;
+      if (serverMessage) {
+        throw new Error(serverMessage);
+      }
+      const status = axiosErr.response?.status;
+      if (status === 404) {
+        throw new Error("タスクが見つからないか権限がありません");
+      }
+      if (status === 401) {
+        throw new Error("認証が必要です。再度ログインしてください");
+      }
+    }
+    throw err as Error;
+  }
 };

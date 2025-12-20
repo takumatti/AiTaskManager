@@ -90,6 +90,8 @@ const Dashboard = () => {
   const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
+  // 画面上に表示する削除エラー
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // タスク一覧取得
   useEffect(() => {
@@ -273,12 +275,16 @@ const Dashboard = () => {
   // タスク削除ハンドラ
   const handleDelete = async (taskId: number) => {
     try {
+      console.debug("[Dashboard] delete requested", taskId);
+      setDeleteError(null);
   await deleteTask(taskId);
   const tasks = await fetchTasks();
   setAllTasks(tasks);
   setDataVersion(v => v + 1);
     } catch (e) {
       console.error("削除エラー:", e);
+      const message = (e as Error)?.message || "削除に失敗しました";
+      setDeleteError(message);
     }
   };
 
@@ -309,6 +315,11 @@ const Dashboard = () => {
           {aiError && (
             <div style={{ textAlign: "center", color: "#b00020", padding: "4px 0" }}>
               <span style={{ fontSize: "0.9rem" }}>{aiError}</span>
+            </div>
+          )}
+          {deleteError && (
+            <div style={{ textAlign: "center", color: "#b00020", padding: "4px 0" }}>
+              <span style={{ fontSize: "0.9rem" }}>{deleteError}</span>
             </div>
           )}
           <div className="dashboard-header-sub">

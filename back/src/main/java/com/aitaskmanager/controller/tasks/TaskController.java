@@ -17,11 +17,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.aitaskmanager.repository.dto.login.tasks.TaskRequest;
+import com.aitaskmanager.repository.dto.tasks.TaskRequest;
+import com.aitaskmanager.repository.dto.tasks.TaskResponse;
+import com.aitaskmanager.repository.dto.tasks.TaskTreeResponse;
 import com.aitaskmanager.repository.model.Tasks;
-import com.aitaskmanager.repository.dto.login.tasks.TaskResponse;
 import com.aitaskmanager.service.tasks.TaskService;
-import com.aitaskmanager.repository.dto.login.tasks.TaskTreeResponse;
+import com.aitaskmanager.util.LogUtil;
+import com.aitaskmanager.util.RequestGuard;
 
 /**
  * タスクに関連するAPIエンドポイントを提供するコントローラー
@@ -41,8 +43,9 @@ public class TaskController {
      */
     @GetMapping
     public List<TaskResponse> getTasks(Authentication authentication) {
-        String username = authentication.getName();
-        List<Tasks> tasks = taskService.getTasksByUsername(username);
+        Integer userId = RequestGuard.requireUserId();
+        LogUtil.controller(TaskController.class, "tasks.list", userId, authentication != null ? authentication.getName() : null, "invoked");
+        List<Tasks> tasks = taskService.getTasksByUserId(userId);
         // すべて東京タイムゾーンで返す
         SimpleDateFormat dueSdf = new SimpleDateFormat("yyyy/MM/dd");
         SimpleDateFormat dtSdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
@@ -51,9 +54,9 @@ public class TaskController {
         
         return tasks.stream().map(t -> {
             TaskResponse dto = new TaskResponse();
-            dto.setId(t.getId());
-            dto.setUserId(t.getUserId());
-            dto.setParentTaskId(t.getParentTaskId());
+            dto.setId(t.getTaskSid());
+            dto.setUserId(t.getUserSid());
+            dto.setParentTaskId(t.getParentTaskSid());
             dto.setTitle(t.getTitle());
             dto.setDescription(t.getDescription());
             dto.setDueDate(t.getDueDate() != null ? dueSdf.format(t.getDueDate()) : null);
@@ -73,8 +76,9 @@ public class TaskController {
      */
     @GetMapping("/tree")
     public List<TaskTreeResponse> getTaskTree(Authentication authentication) {
-        String username = authentication.getName();
-        return taskService.getTaskTree(username);
+        Integer userId = RequestGuard.requireUserId();
+        LogUtil.controller(TaskController.class, "tasks.tree", userId, authentication != null ? authentication.getName() : null, "invoked");
+        return taskService.getTaskTree(userId);
     }
 
     /**
@@ -86,8 +90,9 @@ public class TaskController {
      */
     @PostMapping
     public Tasks createTask(@RequestBody TaskRequest request, Authentication authentication) {
-        String username = authentication.getName();
-        return taskService.createTask(username, request);
+        Integer userId = RequestGuard.requireUserId();
+        LogUtil.controller(TaskController.class, "tasks.create", userId, authentication != null ? authentication.getName() : null, "invoked");
+        return taskService.createTask(userId, request);
     }
 
     /**
@@ -99,9 +104,10 @@ public class TaskController {
      * @return 更新されたタスク
      */
     @PutMapping("/{id}")
-    public ResponseEntity<Tasks> updateTask(@PathVariable int id, @RequestBody TaskRequest request, Authentication authentication) {
-        String username = authentication.getName();
-        Tasks updated = taskService.updateTask(id, request, username);
+    public ResponseEntity<Tasks> updateTask(@PathVariable("id") int id, @RequestBody TaskRequest request, Authentication authentication) {
+        Integer userId = RequestGuard.requireUserId();
+        LogUtil.controller(TaskController.class, "tasks.update id=" + id, userId, authentication != null ? authentication.getName() : null, "invoked");
+        Tasks updated = taskService.updateTask(id, request, userId);
         return ResponseEntity.ok(updated);
     }
 
@@ -114,9 +120,10 @@ public class TaskController {
      * @return 再細分化されたタスクツリーのリスト
      */
     @PostMapping("/{id}/redecompose")
-    public List<TaskTreeResponse> redecompose(@PathVariable int id, @RequestBody TaskRequest request, Authentication authentication) {
-        String username = authentication.getName();
-        return taskService.redecomposeTask(username, id, request);
+    public List<TaskTreeResponse> redecompose(@PathVariable("id") int id, @RequestBody TaskRequest request, Authentication authentication) {
+        Integer userId = RequestGuard.requireUserId();
+        LogUtil.controller(TaskController.class, "tasks.redecompose id=" + id, userId, authentication != null ? authentication.getName() : null, "invoked");
+        return taskService.redecomposeTask(userId, id, request);
     }
 
     /**
@@ -127,8 +134,9 @@ public class TaskController {
      */
     @PostMapping("/{id}/decompose")
     public List<TaskTreeResponse> decompose(@PathVariable int id, @RequestBody TaskRequest request, Authentication authentication) {
-        String username = authentication.getName();
-        return taskService.redecomposeTask(username, id, request);
+        Integer userId = RequestGuard.requireUserId();
+        LogUtil.controller(TaskController.class, "tasks.decompose id=" + id, userId, authentication != null ? authentication.getName() : null, "invoked");
+        return taskService.redecomposeTask(userId, id, request);
     }
 
 
@@ -139,9 +147,11 @@ public class TaskController {
      * @param authentication 認証情報
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteTask(@PathVariable int id, Authentication authentication) {
-        String username = authentication.getName();
-        taskService.deleteTask(id, username);
+    public ResponseEntity<Void> deleteTask(@PathVariable("id") int id, Authentication authentication) {
+        String username = authentication != null ? authentication.getName() : null;
+        Integer userId = RequestGuard.requireUserId();
+        LogUtil.controller(TaskController.class, "tasks.delete id=" + id, userId, username, "invoked");
+        taskService.deleteTask(id, userId);
         return ResponseEntity.noContent().build();
     }
 

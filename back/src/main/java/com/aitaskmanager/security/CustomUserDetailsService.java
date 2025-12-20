@@ -21,22 +21,24 @@ public class CustomUserDetailsService implements UserDetailsService {
     /**
      * ユーザー名からユーザー情報を取得してUserDetailsに変換
      * 
-     * @param username ユーザー名
+     * @param userId ユーザーID
      * @return UserDetailsオブジェクト
      */
     @Override
-    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        Users user = userMapper.selectByUserName(username);
+    public UserDetails loadUserByUsername(String userId) throws UsernameNotFoundException {
+        Users user = userMapper.selectByUserId(userId);
         if (user == null) {
-            throw new UsernameNotFoundException("ユーザーが見つかりません: " + username);
+            throw new UsernameNotFoundException("ユーザーが見つかりません: " + userId);
         }
 
         // Security用のUserDetailsに変換
-        return org.springframework.security.core.userdetails.User
-                .withUsername(user.getUsername())
-                .password(user.getPassword())
-                .roles(user.getRole())
-                .build();
+        return new CustomUserDetails(
+                userId,
+                user.getPassword(),
+                user.getRole(),
+                user.getPlanId(),
+                user.getIsActive()
+        );
     }
     
 }

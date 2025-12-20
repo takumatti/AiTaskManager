@@ -9,20 +9,19 @@ import "./Login.css";
 export default function LoginPage() {
   const { setAuth } = useAuth();
   const navigate = useNavigate();
-  const [username, setUsername] = useState("");
+  const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
   // Login form UX: 送信試行フラグ（フォーカスアウト検証は行わない）
   const [loginSubmitAttempted, setLoginSubmitAttempted] = useState(false);
   // Register form state
   const [showRegister, setShowRegister] = useState(false);
+  const [regLoginId, setRegLoginId] = useState("");
   const [regUsername, setRegUsername] = useState("");
   const [regEmail, setRegEmail] = useState("");
   const [regPassword, setRegPassword] = useState("");
   // Register form UX: 入力済み/送信試行フラグ
   const [regSubmitAttempted, setRegSubmitAttempted] = useState(false);
   const [regPasswordTouched, setRegPasswordTouched] = useState(false);
-  // 登録エラーの発生源（submit or server）
-  const [regErrorSource, setRegErrorSource] = useState<'submit' | 'server' | null>(null);
 
   // 登録フォーム表示切替時に状態をクリーンリセット
   useEffect(() => {
@@ -30,13 +29,11 @@ export default function LoginPage() {
       setRegisterError("");
       setRegSubmitAttempted(false);
       setRegPasswordTouched(false);
-      setRegErrorSource(null);
       // ログイン側の状態も安全のためクリア
       setLoginError("");
       setLoginSubmitAttempted(false);
     } else {
       // 登録フォームを閉じたら関連状態のみクリア
-      setRegErrorSource(null);
     }
   }, [showRegister]);
   // エラー表示（ログイン/登録で独立管理）
@@ -52,8 +49,8 @@ export default function LoginPage() {
     setLoginSubmitAttempted(true);
     try {
       // 必須チェック（フロント）
-      if (!username.trim()) {
-        setLoginError("ユーザー名 / メールアドレスは必須です");
+      if (!userId.trim()) {
+        setLoginError("ユーザーID / メールアドレスは必須です");
         setLoading(false);
         return;
       }
@@ -63,21 +60,22 @@ export default function LoginPage() {
         return;
       }
       const response = await apiClient.post("/api/auth/login", {
-        username,
+        userId: userId,
         password,
       });
-      const { accessToken, refreshToken, userId } = response.data as { accessToken: string; refreshToken: string; userId?: number };
-      setAuth({ accessToken, refreshToken, username, userId });
+      const { accessToken, refreshToken, userId: uid } = response.data as { accessToken: string; refreshToken: string; userId?: number };
+      // 既存のAuth型互換のため、usernameには入力したuserIdを格納
+      setAuth({ accessToken, refreshToken, username: userId, userId: uid });
       navigate("/dashboard");
     } catch (error: unknown) {
-  let message = "ユーザー名またはパスワードが違います";
+      let message = "ユーザーIDまたはパスワードが違います";
       if (axios.isAxiosError(error)) {
         const axiosError = error as AxiosError<{ message: string }>;
         if (axiosError.response?.data?.message) {
           message = axiosError.response.data.message;
         }
       }
-  setLoginError(message);
+      setLoginError(message);
     } finally {
       setLoading(false);
     }
@@ -89,9 +87,19 @@ export default function LoginPage() {
     setLoading(true);
     setRegisterError("");
     setRegSubmitAttempted(true);
-    setRegErrorSource('submit');
     try {
       
+      if (!regLoginId.trim()) {
+        setRegisterError("ログインIDは必須です");
+        setLoading(false);
+        return;
+      }
+      // client-side simple validation
+      if (!/^[A-Za-z0-9_-]{3,32}$/.test(regLoginId)) {
+        setRegisterError("ログインIDは英数字・-_で3〜32文字で入力してください");
+        setLoading(false);
+        return;
+      }
       if (!regUsername.trim()) {
         setRegisterError("ユーザー名は必須です");
         setLoading(false);
@@ -114,6 +122,7 @@ export default function LoginPage() {
         return;
       }
       const response = await apiClient.post("/api/auth/register", {
+        userId: regLoginId,
         username: regUsername,
         email: regEmail,
         password: regPassword,
@@ -130,7 +139,6 @@ export default function LoginPage() {
         }
       }
   setRegisterError(message);
-      setRegErrorSource('server');
     } finally {
       setLoading(false);
     }
@@ -148,6 +156,16 @@ export default function LoginPage() {
               </div>
               {showRegister ? (
                 <form onSubmit={(e) => e.preventDefault()} noValidate>
+                  <div className="mb-3">
+                    <label className="form-label">ログインID <small className="text-muted">(3〜32文字)</small></label>
+                    <input
+                      type="text"
+                      className="form-control form-control-lg"
+                      value={regLoginId}
+                      onChange={(e) => setRegLoginId(e.target.value)}
+                      required
+                    />
+                  </div>
                   <div className="mb-3">
                     <label className="form-label">ユーザー名</label>
                     <input
@@ -182,7 +200,8 @@ export default function LoginPage() {
                       <small className="text-danger">8文字以上のパスワードを入力してください</small>
                     )}
                   </div>
-                  {showRegister && regSubmitAttempted && regErrorSource === 'submit' && registerError && (
+                  {/* サーバー由来/クライアント由来のいずれのエラーも表示する */}
+                  {showRegister && regSubmitAttempted && registerError && (
                     <div className="alert alert-danger text-center py-2">{registerError}</div>
                   )}
                   <div className="d-grid mt-4">
@@ -197,7 +216,7 @@ export default function LoginPage() {
                     </button>
                   </div>
                   <div className="text-center mt-3">
-                    <button type="button" className="btn btn-link" onClick={() => { setRegisterError(""); setRegUsername(""); setRegEmail(""); setRegPassword(""); setRegSubmitAttempted(false); setRegPasswordTouched(false); setShowRegister(false); }}>
+                    <button type="button" className="btn btn-link" onClick={() => { setRegisterError(""); setRegLoginId(""); setRegUsername(""); setRegEmail(""); setRegPassword(""); setRegSubmitAttempted(false); setRegPasswordTouched(false); setShowRegister(false); }}>
                       既にアカウントをお持ちの方はこちら
                     </button>
                   </div>
@@ -205,12 +224,12 @@ export default function LoginPage() {
               ) : (
                 <form onSubmit={handleLogin} noValidate>
                   <div className="mb-3">
-                    <label className="form-label">ユーザー名 / メールアドレス</label>
+                    <label className="form-label">ユーザーID / メールアドレス</label>
                     <input
                       type="text"
                       className="form-control form-control-lg"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
+                      value={userId}
+                      onChange={(e) => setUserId(e.target.value)}
                       required
                       autoFocus
                     />

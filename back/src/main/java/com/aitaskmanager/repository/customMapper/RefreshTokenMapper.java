@@ -13,21 +13,24 @@ public interface RefreshTokenMapper {
 
     /**
      * ユーザーIDを指定してリフレッシュトークンを取得する
-     * @param userId
+     * 
+     * @param userId ユーザーID
      * @return リフレッシュトークン情報
      */
     RefreshTokens selectByUserId(int userId);
 
     /**
      * リフレッシュトークンを挿入する
-     * @param refreshToken
+     * 
+     * @param refreshToken リフレッシュトークン情報
      * @return 挿入件数
      */
     int insert(RefreshTokens refreshToken);
 
     /**
      * ユーザーIDを指定してリフレッシュトークンを削除する
-     * @param userId   
+     * 
+     * @param userId ユーザーID
      * @return 削除件数
      */
     int deleteByUserId(Integer userId);
