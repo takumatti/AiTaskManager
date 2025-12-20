@@ -15,13 +15,13 @@ public final class LogUtil {
      * 例: [Controller] tasks.delete id=123 userId=1 username=alice invoked
      * @param clazz ログを出力するクラス
      * @param domainDotAction ドメインとアクションをドットでつなげた文字列（例: "tasks.delete"）
-     * @param userId ユーザーID
+     * @param userSid ユーザーSID
      * @param username ユーザー名
      * @param suffix ログの末尾に付与する文字列（例: "invoked", "completed"）
      */
-    public static void controller(Class<?> clazz, String domainDotAction, Integer userId, String username, String suffix) {
+    public static void controller(Class<?> clazz, String domainDotAction, Integer userSid, String username, String suffix) {
         Logger log = LoggerFactory.getLogger(clazz);
-        log.info("[Controller] {} userId={} username={} {}", domainDotAction, userId, username, suffix);
+        log.info("[Controller] {} userSid={} username={} {}", domainDotAction, userSid, username, suffix);
     }
 
     /**

@@ -6,7 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * リクエスト共通ガード。現在のユーザーIDを取得し、存在しない場合は401を投げる。
+ * リクエスト共通ガード。現在の内部数値ユーザーID（user_sid）を取得し、存在しない場合は401を投げる。
  */
 public final class RequestGuard {
 
@@ -15,15 +15,16 @@ public final class RequestGuard {
     private RequestGuard() {}
 
     /**
-     * 現在の認証コンテキストから userIdを取得。nullなら 401 を投げる。
-     * @return userId
+     * 現在の認証コンテキストから内部数値ID（user_sid）を取得。nullなら401を投げる。
+     * 
+     * @return userSid（Integer）
      */
-    public static Integer requireUserId() {
-        Integer userId = SecurityUtils.getCurrentUserId();
-        if (userId == null) {
-            log.warn("[Guard] userId is null; unauthorized");
+    public static Integer requireUserSid() {
+        Integer userSid = SecurityUtils.getCurrentUserId();
+        if (userSid == null) {
+            log.warn("[Guard] userSid is null; unauthorized");
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "ユーザーが存在しません");
         }
-        return userId;
+        return userSid;
     }
 }

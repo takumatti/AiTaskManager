@@ -14,22 +14,38 @@ import com.aitaskmanager.repository.model.Tasks;
 public interface TaskMapper {
     
     /**
-     * ユーザーIDに基づいてタスクを選択する
+     * ユーザーSIDに基づいてタスクを選択する
      *
-     * @param userId ユーザーID
+     * @param userSid ユーザーSID
      * @return タスクのリスト
      */
-    List<Tasks> selectByUserId(Integer userId);
+    List<Tasks> selectByUserSid(Integer userSid);
 
     /**
-     * タスクIDとユーザーIDに基づいてタスクを選択する
+     * タスクSIDとユーザーSIDに基づいてタスクを選択する
      * 
-     * @param taskId タスクID
-     * @param userId ユーザーID
+     * @param taskSid タスクSID
+     * @param userSid ユーザーSID
      * @return タスクオブジェクト
      */
-    Tasks selectByTaskIdAndUserId(@Param("taskId") Integer taskId, 
-                                  @Param("userId")Integer userId);
+    Tasks selectByTaskSidAndUserSid(@Param("taskSid") Integer taskSid, 
+                                    @Param("userSid")Integer userSid);
+
+    /**
+     * 親タスクSIDに紐づく子タスク件数を取得する（二重細分化防止用）
+     * 
+     * @param parentTaskSid 親タスクSID
+     * @return 子タスク件数
+     */
+    int countChildrenByParentSid(@Param("parentTaskSid") Integer parentTaskSid);
+
+    /**
+     * 親タスクSIDで子タスク一覧取得
+     * 
+     * @param parentTaskSid 親タスクSID
+     * @return 子タスクリスト
+     */
+    List<Tasks> selectChildrenByParentSid(@Param("parentTaskSid") Integer parentTaskSid);
 
     /**
      * タスクを挿入する
@@ -48,36 +64,22 @@ public interface TaskMapper {
     int update(Tasks task);
 
     /**
-     * タスクIDとユーザーIDに基づいてタスクを削除する
-     * 
-     * @param id タスクID
-     * @param userId ユーザーID
-     * @return 削除された行数
-     */
-    int deleteByIdAndUserId(@Param("id") Integer id, 
-                            @Param("userId") Integer userId);
-
-    /**
-     * 親タスクIDに紐づく子タスク件数を取得する（二重細分化防止用）
-     * 
-     * @param parentTaskId 親タスクID
-     * @return 子タスク件数
-     */
-    int countChildrenByParentId(@Param("parentTaskId") Integer parentTaskId);
-
-    /**
-     * 親タスクIDで子タスク一覧取得
-     * 
-     * @param parentTaskId 親タスクID
-     * @return 子タスクリスト
-     */
-    List<Tasks> selectChildrenByParentId(@Param("parentTaskId") Integer parentTaskId);
-
-    /**
      * 親タスクの細分化日時更新
      * 
-     * @param id 親タスクID
-     * @param userId ユーザーID
+     * @param taskSid 親タスクSID
+     * @param userSid ユーザーSID
      */
-    int updateDecomposedAt(@Param("id") Integer id, @Param("userId") Integer userId);
+    int updateDecomposedAt(@Param("taskSid") Integer taskSid,
+                           @Param("userSid") Integer userSid);
+
+    /**
+     * タスクSIDとユーザーSIDに基づいてタスクを削除する
+     * 
+     * @param taskSid タスクSID
+     * @param userSid ユーザーSID
+     * @return 削除された行数
+     */
+    int deleteByTaskSidAndUserSid(@Param("taskSid") Integer taskSid, 
+                            @Param("userSid") Integer userSid);
+
 }

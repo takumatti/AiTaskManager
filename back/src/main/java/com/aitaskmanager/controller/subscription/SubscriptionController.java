@@ -1,6 +1,5 @@
 package com.aitaskmanager.controller.subscription;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -14,12 +13,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.aitaskmanager.repository.customMapper.UserMapper;
 import com.aitaskmanager.repository.dto.subscription.ChangePlanRequest;
-import com.aitaskmanager.repository.generator.SubscriptionPlansMapper;
-import com.aitaskmanager.repository.model.SubscriptionPlans;
-import com.aitaskmanager.repository.model.Users;
+import com.aitaskmanager.service.subscription.SubscriptionService;
 import com.aitaskmanager.util.LogUtil;
+import com.aitaskmanager.util.RequestGuard;
 
 import lombok.RequiredArgsConstructor;
 
@@ -32,10 +29,7 @@ import lombok.RequiredArgsConstructor;
 public class SubscriptionController {
 
     @Autowired
-    private SubscriptionPlansMapper subscriptionPlansMapper;
-
-    @Autowired
-    private UserMapper userMapper;
+    private SubscriptionService subscriptionService;
 
     /**
      * 利用可能なサブスクリプションプランのリストを取得するエンドポイント
@@ -45,15 +39,7 @@ public class SubscriptionController {
     @GetMapping("/plans")
     public ResponseEntity<List<Map<String, Object>>> getPlans() {
         LogUtil.controller(SubscriptionController.class, "plans.list", null, null, "invoked");
-        List<SubscriptionPlans> plans = subscriptionPlansMapper.selectAll();
-        List<Map<String, Object>> body = plans.stream().map(p -> {
-            Map<String, Object> m = new HashMap<>();
-            m.put("id", p.getSubscriptionPlanSid());
-            m.put("name", p.getName());
-            m.put("aiQuota", p.getAiQuota());
-            return m;
-        }).toList();
-        return ResponseEntity.ok(body);
+        return ResponseEntity.ok(subscriptionService.getPlans());
     }
 
     /**
@@ -65,25 +51,10 @@ public class SubscriptionController {
     @PostMapping("/subscriptions/change")
     public ResponseEntity<Map<String, Object>> changePlan(@RequestBody ChangePlanRequest request) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        LogUtil.controller(SubscriptionController.class, "subscriptions.change", null, auth != null ? auth.getName() : null, "invoked");
-        if (auth == null || !auth.isAuthenticated()) {
-            return ResponseEntity.status(401).body(Map.of("message", "unauthorized"));
-        }
-
-        String userId = auth.getName();
-        Users user = (userId != null) ? userMapper.selectByUserId(userId) : null;
-        if (user == null) {
-            return ResponseEntity.status(401).body(Map.of("message", "user-not-found"));
-        }
-
-        Integer planId = request.getPlanId();
-        // 簡易バリデーション: 存在するプランか
-        SubscriptionPlans plan = planId != null ? subscriptionPlansMapper.selectByPrimaryKey(planId) : null;
-        if (plan == null) {
-            return ResponseEntity.badRequest().body(Map.of("message", "invalid-plan"));
-        }
-
-        userMapper.updatePlanId(userId, planId);
-    return ResponseEntity.ok(Map.of("message", "ok", "planId", plan.getSubscriptionPlanSid(), "planName", plan.getName()));
+        Integer userSid = RequestGuard.requireUserSid();
+        String username = (auth != null) ? auth.getName() : null;
+        LogUtil.controller(SubscriptionController.class, "subscriptions.change", userSid, username, "invoked");
+        Map<String, Object> body = subscriptionService.changePlan(userSid, (username != null ? username : null), request != null ? request.getPlanId() : null);
+        return ResponseEntity.ok(body);
     }
 }

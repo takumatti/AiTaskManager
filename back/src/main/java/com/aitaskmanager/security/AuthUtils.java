@@ -13,12 +13,6 @@ public final class AuthUtils {
     private AuthUtils() {}
 
     /**
-     * 
-     * 
-     * @param auth 
-     * @return
-     */
-    /**
      * Authentication から JWT クレーム群（claims）を安全に取り出す
      *
      * @param auth 認証情報。null の場合は null を返します。
@@ -50,12 +44,12 @@ public final class AuthUtils {
     }
 
     /**
-     * 認証情報からユーザーIDを取得する
+     * 認証情報からユーザーSIDを取得する
      * 
      * @param auth 認証情報
-     * @return ユーザーID、存在しない場合はnull
+     * @return ユーザーSID、存在しない場合はnull
      */
-    public static Integer getUserId(Authentication auth) {
+    public static Integer getUserSid(Authentication auth) {
         Map<String, Object> claims = extractClaims(auth);
         if (claims == null) return null;
         Object v = claims.get("uid");
@@ -71,7 +65,7 @@ public final class AuthUtils {
      * 認証情報からプランIDを取得する
      * 
      * @param auth 認証情報
-     * @return プランID、存在しない場合はnull
+     * @return プランSID、存在しない場合はnull
      */
     public static Integer getPlanId(Authentication auth) {
         Map<String, Object> claims = extractClaims(auth);

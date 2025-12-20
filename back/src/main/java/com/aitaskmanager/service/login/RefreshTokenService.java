@@ -50,7 +50,7 @@ public class RefreshTokenService {
 
         // 古いトークン削除
         Integer uid = (user.getUserSid() != null) ? Math.toIntExact(user.getUserSid()) : null;
-        refreshTokenMapper.deleteByUserId(uid);
+        refreshTokenMapper.deleteByUserSid(uid);
 
         // 新しいトークン保存（ハッシュ化）
         RefreshTokens refreshToken = new RefreshTokens();
@@ -85,7 +85,7 @@ public class RefreshTokenService {
 
         // 2. DBに保存されたトークンを取得（内部数値ID user_sid をキー）
         Integer uid = (user.getUserSid() != null) ? Math.toIntExact(user.getUserSid()) : null;
-        RefreshTokens savedToken = refreshTokenMapper.selectByUserId(uid);
+        RefreshTokens savedToken = refreshTokenMapper.selectByUserSid(uid);
 
         if (savedToken == null) {
             throw new BadCredentialsException("リフレッシュトークンが登録されていません");
@@ -120,7 +120,7 @@ public class RefreshTokenService {
         }
 
         Integer uid = (user.getUserSid() != null) ? Math.toIntExact(user.getUserSid()) : null;
-        refreshTokenMapper.deleteByUserId(uid);
+        refreshTokenMapper.deleteByUserSid(uid);
         LogUtil.service(RefreshTokenService.class, "auth.refresh-token.delete", "uid=" + uid, "completed");
     }
 

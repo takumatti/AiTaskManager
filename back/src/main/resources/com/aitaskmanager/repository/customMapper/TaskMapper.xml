@@ -15,33 +15,31 @@
     <result column="decomposed_at" jdbcType="TIMESTAMP" property="decomposedAt" />
   </resultMap>
 
-  <select id="selectByUserId" parameterType="java.lang.Integer" resultMap="BaseResultMap">
+  <select id="selectByUserSid" parameterType="java.lang.Integer" resultMap="BaseResultMap">
     select task_sid, user_sid, parent_task_sid, title, description, due_date, priority, status, created_at, updated_at, decomposed_at
     from tasks
-    where user_sid = #{userId}
+    where user_sid = #{userSid}
   </select>
 
-  <select id="selectByTaskIdAndUserId" resultMap="BaseResultMap">
+  <select id="selectByTaskSidAndUserSid" resultMap="BaseResultMap">
     select task_sid, user_sid, parent_task_sid, title, description, due_date, priority, status, created_at, updated_at, decomposed_at
     from tasks
-    where task_sid = #{taskId}
-      and user_sid = #{userId}
+    where task_sid = #{taskSid}
+      and user_sid = #{userSid}
   </select>
 
-  <select id="countChildrenByParentId" parameterType="java.lang.Integer" resultType="int">
-    select count(1) from tasks where parent_task_sid = #{parentTaskId}
+  <select id="countChildrenByParentSid" parameterType="java.lang.Integer" resultType="int">
+    select count(1)
+    from tasks
+    where parent_task_sid = #{parentTaskSid}
   </select>
 
-  <select id="selectChildrenByParentId" parameterType="java.lang.Integer" resultMap="BaseResultMap">
+  <select id="selectChildrenByParentSid" parameterType="java.lang.Integer" resultMap="BaseResultMap">
     select task_sid, user_sid, parent_task_sid, title, description, due_date, priority, status, created_at, updated_at, decomposed_at
     from tasks
-    where parent_task_sid = #{parentTaskId}
+    where parent_task_sid = #{parentTaskSid}
     order by task_sid asc
   </select>
-
-  <update id="updateDecomposedAt">
-    update tasks set decomposed_at = now(), updated_at = now() where task_sid = #{id} and user_sid = #{userId}
-  </update>
   
   <insert id="insert" parameterType="com.aitaskmanager.repository.model.Tasks" useGeneratedKeys="true" keyProperty="taskSid" keyColumn="task_sid">
     insert into tasks (user_sid, parent_task_sid, title, description, due_date, priority, status, created_at, updated_at, decomposed_at)
@@ -60,10 +58,19 @@
       decomposed_at = #{decomposedAt},
       updated_at = now()
     where task_sid = #{taskSid} and user_sid = #{userSid}
-  </update>  
+  </update>
 
-  <delete id="deleteByIdAndUserId">
+  <update id="updateDecomposedAt">
+    update tasks 
+    set decomposed_at = now(),
+        updated_at = now() 
+    where task_sid = #{taskSid} 
+      and user_sid = #{userSid}
+  </update>
+
+  <delete id="deleteByTaskSidAndUserSid">
     delete from tasks
-    where task_sid = #{id} and user_sid = #{userId}
+    where task_sid = #{taskSid}
+      and user_sid = #{userSid}
   </delete>
 </mapper>

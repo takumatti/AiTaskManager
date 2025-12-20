@@ -1,16 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aitaskmanager.repository.customMapper.RefreshTokenMapper">
-  <select id="selectByUserId" parameterType="java.lang.Integer" resultType="com.aitaskmanager.repository.model.RefreshTokens">
+  <select id="selectByUserSid" parameterType="java.lang.Integer" resultType="com.aitaskmanager.repository.model.RefreshTokens">
     SELECT refresh_token_sid, user_sid, token, expires_at, created_at
     FROM refresh_tokens
-    WHERE user_sid = #{userId}
+    WHERE user_sid = #{userSid}
   </select>
   <insert id="insert" parameterType="com.aitaskmanager.repository.model.RefreshTokens">
     INSERT INTO refresh_tokens (user_sid, token, expires_at)
     VALUES (#{userSid}, #{token}, #{expiresAt})
   </insert>
-  <delete id="deleteByUserId" parameterType="java.lang.Integer">
-    DELETE FROM refresh_tokens WHERE user_sid = #{userId}
+  <delete id="deleteByUserSid" parameterType="java.lang.Integer">
+    DELETE FROM refresh_tokens
+    WHERE user_sid = #{userSid}
   </delete>
 </mapper>

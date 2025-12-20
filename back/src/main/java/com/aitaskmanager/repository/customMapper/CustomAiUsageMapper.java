@@ -10,21 +10,25 @@ import org.apache.ibatis.annotations.Param;
 public interface CustomAiUsageMapper {
     
     /** 
-     * 指定されたユーザーIDと年月に基づいて使用済みのAI利用回数を取得する
+     * 指定されたユーザーSIDと年月に基づいて使用済みのAI利用回数を取得する
      * 
-     * @param userId ユーザーID
+     * @param userSid ユーザーSID
      * @param year 対象年
      * @param month 対象月
      * @return 使用済みのAI利用回数
      */
-    Integer selectUsedCount(@Param("userId") Integer userId, @Param("year") Integer year, @Param("month") Integer month);
+    Integer selectUsedCount(@Param("userSid") Integer userSid,
+                            @Param("year") Integer year,
+                            @Param("month") Integer month);
 
     /**
-     * 指定されたユーザーIDと年月に基づいてAI利用回数をインクリメントする
+     * 指定されたユーザーSIDと年月に基づいてAI利用回数をインクリメントする
      * 
-     * @param userId ユーザーID
+     * @param userSid ユーザーSID
      * @param year 対象年
      * @param month 対象月
      */
-    void upsertIncrement(@Param("userId") Integer userId, @Param("year") Integer year, @Param("month") Integer month);
+    void upsertIncrement(@Param("userSid") Integer userSid,
+                         @Param("year") Integer year,
+                         @Param("month") Integer month);
 }
