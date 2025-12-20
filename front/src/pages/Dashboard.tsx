@@ -90,6 +90,7 @@ const Dashboard = () => {
   const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
+  const [planMessage, setPlanMessage] = useState<{type: 'success' | 'error'; text: string} | null>(null);
   // 画面上に表示する削除エラー
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
@@ -133,12 +134,29 @@ const Dashboard = () => {
       setPlanLoading(true);
       setPlanError(null);
       try {
+        // モーダルオープン毎に最新のクオータを取得
+        await reloadQuota();
         const list = await fetchPlans();
         setPlans(list);
-        // 既存プランに合わせて初期選択（名前一致 or 最初の要素）
-        const currentName = aiQuota?.planName || "";
-        const found = list.find(p => p.name === currentName);
-        setSelectedPlanId(found ? found.id : (list[0]?.id ?? null));
+        // まず planId による一致を試み、無い場合は名前によるフォールバック
+        const currentPlanId = aiQuota?.planId ?? null;
+        let selectedId: number | null = null;
+        if (currentPlanId != null) {
+          const idMatch = list.find(p => p.id === currentPlanId);
+          if (idMatch) selectedId = idMatch.id;
+        }
+        if (selectedId == null) {
+          const currentNameRaw = (aiQuota?.planName || "").trim();
+          const currentLower = currentNameRaw.toLowerCase();
+          const normalize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
+          const currentNorm = normalize(currentNameRaw);
+          let match = list.find(p => p.name.trim().toLowerCase() === currentLower);
+          if (!match) match = list.find(p => p.name.trim().toLowerCase().startsWith(currentLower));
+          if (!match) match = list.find(p => p.name.toLowerCase().includes(currentLower));
+          if (!match) match = list.find(p => normalize(p.name) === currentNorm);
+          selectedId = match ? match.id : (list[0]?.id ?? null);
+        }
+        setSelectedPlanId(selectedId);
       } catch {
         setPlanError("プラン一覧の取得に失敗しました");
       } finally {
@@ -146,7 +164,7 @@ const Dashboard = () => {
       }
     };
     void loadPlans();
-  }, [showPlanModal, aiQuota?.planName]);
+  }, [showPlanModal, aiQuota?.planName, aiQuota?.planId]);
 
   // フィルタ＆ソート
   const filteredTasks = useMemo(() => {
@@ -313,21 +331,25 @@ const Dashboard = () => {
           </div>
           {/* タイトル直下の中央揃えエラー表示 */}
           {aiError && (
-            <div style={{ textAlign: "center", color: "#b00020", padding: "4px 0" }}>
-              <span style={{ fontSize: "0.9rem" }}>{aiError}</span>
+            <div className="header-inline-error">
+              <span className="header-inline-error-text">{aiError}</span>
             </div>
           )}
           {deleteError && (
-            <div style={{ textAlign: "center", color: "#b00020", padding: "4px 0" }}>
-              <span style={{ fontSize: "0.9rem" }}>{deleteError}</span>
+            <div className="header-inline-error">
+              <span className="header-inline-error-text">{deleteError}</span>
+            </div>
+          )}
+          {planMessage && (
+            <div className="plan-message">
+              <span className={`plan-message-chip ${planMessage.type === 'success' ? 'success' : 'error'}`}>{planMessage.text}</span>
             </div>
           )}
           <div className="dashboard-header-sub">
             <div className="dashboard-view-toggle-right">
               <button
-                className="btn btn-primary"
+                className="btn btn-primary view-toggle-btn"
                 onClick={() => setView(view === 'list' ? 'calendar' : 'list')}
-                style={{ fontSize: "0.9rem", lineHeight: 1.0, paddingTop: 2, paddingBottom: 2 }}
               >
                 {view === 'list' ? (
                   <>
@@ -343,8 +365,8 @@ const Dashboard = () => {
               </button>
             </div>
             {/* AIクオータ表示（右寄せの隣に薄いテキスト） */}
-            <div style={{ marginLeft: "auto", paddingLeft: 12, color: "#666", maxWidth: 360 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div className="quota-info">
+              <div className="quota-inline">
                 {aiError ? (
                   <>
                     {/* 右側ではテキストは省略し、操作系のみ */}
@@ -514,7 +536,7 @@ const Dashboard = () => {
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">プランを選択</h5>
-                <button type="button" className="btn-close" onClick={() => setShowPlanModal(false)}></button>
+                <button type="button" className="btn-close" onClick={() => { setShowPlanModal(false); setSelectedPlanId(null); }}></button>
               </div>
               <div className="modal-body">
                 {planLoading ? (
@@ -523,6 +545,18 @@ const Dashboard = () => {
                   <div className="text-danger">{planError}</div>
                 ) : (
                   <div className="vstack gap-2">
+                    {/* モーダルヘッダ直下にもAI利用状況を表示（上部と同様の文言） */}
+                    <div className="text-muted" style={{fontSize: '0.9rem'}}>
+                      {aiQuota ? (
+                        aiQuota.unlimited ? (
+                          <>AI利用状況: 無制限（{aiQuota.planName}）</>
+                        ) : (
+                          <>AI利用状況: 残り {aiQuota.remaining} 回（{aiQuota.planName}）</>
+                        )
+                      ) : (
+                        <>AI利用状況: 取得中...</>
+                      )}
+                    </div>
                     {plans?.map(p => (
                       <div className="form-check" key={p.id}>
                         <input
@@ -543,7 +577,7 @@ const Dashboard = () => {
                 )}
               </div>
               <div className="modal-footer">
-                <button className="btn btn-secondary" onClick={() => setShowPlanModal(false)}>閉じる</button>
+                <button className="btn btn-secondary" onClick={() => { setShowPlanModal(false); setSelectedPlanId(null); }}>閉じる</button>
                 <button
                   className="btn btn-primary"
                   disabled={!selectedPlanId}
@@ -553,8 +587,12 @@ const Dashboard = () => {
                       await changePlan(selectedPlanId);
                       await reloadQuota();
                       setShowPlanModal(false);
+                      setSelectedPlanId(null);
+                      setPlanMessage({ type: 'success', text: 'プランを変更しました' });
+                      setTimeout(() => setPlanMessage(null), 4000);
                     } catch {
-                      alert("プラン変更に失敗しました");
+                      setPlanMessage({ type: 'error', text: 'プラン変更に失敗しました' });
+                      setTimeout(() => setPlanMessage(null), 4000);
                     }
                   }}
                 >適用</button>

@@ -33,7 +33,8 @@
 
   <update id="updatePlanId">
     UPDATE users
-    SET plan_id = #{planId}
+    SET plan_id = #{planId},
+        updated_at = now()
     WHERE user_id = #{userId}
   </update>
 </mapper>

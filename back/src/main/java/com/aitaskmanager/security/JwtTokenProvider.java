@@ -48,7 +48,7 @@ public class JwtTokenProvider {
      * @param roles ユーザーロール一覧
      * @return 生成されたアクセストークン
      */
-    public String generateAccessToken(String resolvedUserId, Integer userId, List<String> roles) {
+    public String generateAccessToken(String resolvedUserId, Integer userId, Integer planId, List<String> roles) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + accessTokenExpiration);
 
@@ -58,6 +58,7 @@ public class JwtTokenProvider {
                 .setExpiration(expiryDate)
                 .signWith(getSigningKey(), SignatureAlgorithm.HS512);
         if (userId != null) builder.claim("uid", userId);
+        if (planId != null) builder.claim("planId", planId);
         if (roles != null && !roles.isEmpty()) builder.claim("roles", roles);
 
         return builder.compact();
@@ -71,7 +72,7 @@ public class JwtTokenProvider {
      * @param roles ユーザーロール一覧
      * @return 生成されたリフレッシュトークン
      */
-    public String generateRefreshToken(String username, Integer userId, List<String> roles) {
+    public String generateRefreshToken(String username, Integer userId, Integer planId, List<String> roles) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + refreshTokenExpiration);
 
@@ -81,6 +82,7 @@ public class JwtTokenProvider {
                 .setExpiration(expiryDate)
                 .signWith(getSigningKey(), SignatureAlgorithm.HS512);
         if (userId != null) builder.claim("uid", userId);
+        if (planId != null) builder.claim("planId", planId);
         if (roles != null && !roles.isEmpty()) builder.claim("roles", roles);
 
         return builder.compact();

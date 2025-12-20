@@ -76,7 +76,7 @@ public class RegistrationService {
         user.setEmail(request.getEmail());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setRole("USER");
-        user.setPlanId(null);
+        user.setPlanId(1);
         user.setIsActive(true);
         try {
             userMapper.insertUser(user);
@@ -93,8 +93,9 @@ public class RegistrationService {
         java.util.List<String> roles = (saved != null && saved.getRole() != null)
             ? java.util.List.of(saved.getRole())
             : java.util.List.of("USER");
-        String accessToken = jwtTokenProvider.generateAccessToken(request.getUserId(), uid, roles);
-        String refreshToken = jwtTokenProvider.generateRefreshToken(request.getUserId(), uid, roles);
+        Integer planId = (saved != null) ? saved.getPlanId() : null;
+        String accessToken = jwtTokenProvider.generateAccessToken(request.getUserId(), uid, planId, roles);
+        String refreshToken = jwtTokenProvider.generateRefreshToken(request.getUserId(), uid, planId, roles);
         java.util.Date refreshTokenExpireAt = jwtTokenProvider.getRefreshTokenExpiryDate();
         refreshTokenService.saveRefreshToken(request.getUserId(), refreshToken, refreshTokenExpireAt);
 

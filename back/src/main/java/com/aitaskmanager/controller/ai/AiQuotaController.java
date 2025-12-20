@@ -50,22 +50,19 @@ public class AiQuotaController {
     @GetMapping("/quota")
     public ResponseEntity<Map<String, Object>> getQuota() {
         Authentication auth0 = SecurityContextHolder.getContext().getAuthentication();
-        LogUtil.controller(AiQuotaController.class, "ai.quota", null, auth0 != null ? auth0.getName() : null, "invoked");
+        LogUtil.controller(AiQuotaController.class, "ai.quota", null, auth0 != null ? AuthUtils.getUserId(auth0) : null, "invoked");
         try {
-            // OPENAI未設定時は503でガイダンス返却
+            // OPENAI未設定時でもプラン情報は返せるよう、フラグのみ設定
             String apiKey = System.getProperty("openai.apiKey", System.getenv("OPENAI_API_KEY"));
-            if (apiKey == null || apiKey.isBlank()) {
-                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                        .body(error("OPENAI_API_KEY not configured"));
-            }
+            boolean aiConfigured = !(apiKey == null || apiKey.isBlank());
 
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             if (auth == null || !auth.isAuthenticated()) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error("unauthorized"));
             }
 
-            // 認証情報から user_id と（あれば）plan_id を取得
-            String userId = auth.getName(); // subject に user_id
+            // 認証情報からuser_idとplan_id を取得
+            String userId = AuthUtils.getUserId(auth);
             Integer planIdFromToken = AuthUtils.getPlanId(auth);
 
             Users user = (userId != null) ? userMapper.selectByUserId(userId) : null;
@@ -74,23 +71,46 @@ public class AiQuotaController {
             }
 
             // plan_idはトークンにあれば優先、無ければDBの値
+            String planResolve = null;
             Integer planId = (planIdFromToken != null) ? planIdFromToken : user.getPlanId();
+            if (planIdFromToken != null) planResolve = "token"; else if (user.getPlanId() != null) planResolve = "db";
             SubscriptionPlans plan = planId != null ? subscriptionPlansMapper.selectByPrimaryKey(planId) : null;
+            if (plan == null) {
+                // フォールバック: 利用可能なプラン一覧からデフォルト（先頭）を選択
+                try {
+                    LogUtil.controller(AiQuotaController.class, "ai.quota", null, userId, "plan-fallback:select-all");
+                    var all = subscriptionPlansMapper.selectAll();
+                    if (all != null && !all.isEmpty()) {
+                        plan = all.get(0);
+                        planId = plan.getSubscriptionPlanSid();
+                        planResolve = "fallback";
+                    }
+                } catch (Exception ignore) {
+                    // 何もしない（後続でAI不可扱い）
+                }
+            }
             // プランが無い場合はAI不可扱い（0）
             Integer aiQuota = plan != null ? plan.getAiQuota() : 0; // null=unlimited, 0=not allowed
 
             // 今月のAI使用量を取得
             LocalDate now = LocalDate.now();
             Integer uid = (user.getUserSid() != null) ? Math.toIntExact(user.getUserSid()) : null;
-            int used = customAiUsageMapper.selectUsedCount(uid, now.getYear(), now.getMonthValue());
+            Integer usedCount = (uid != null) ? customAiUsageMapper.selectUsedCount(uid, now.getYear(), now.getMonthValue()) : 0;
+            int used = (usedCount != null) ? usedCount.intValue() : 0;
 
             // レスポンス作成
             Map<String, Object> body = new HashMap<>();
             body.put("planName", plan != null ? plan.getName() : "");
+            body.put("planId", plan != null ? plan.getSubscriptionPlanSid() : null);
+            body.put("planResolve", planResolve);
             boolean unlimited = (aiQuota == null);
             body.put("unlimited", unlimited);
             Integer remaining = unlimited ? null : Integer.valueOf(Math.max(0, aiQuota - used));
             body.put("remaining", remaining);
+            body.put("aiConfigured", aiConfigured);
+            if (!aiConfigured) {
+                body.put("message", "AI連携（OpenAI APIキー）が未設定です");
+            }
 
             return ResponseEntity.ok(body);
         } catch (Exception ex) {

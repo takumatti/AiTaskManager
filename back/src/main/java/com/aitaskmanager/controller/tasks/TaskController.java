@@ -44,7 +44,7 @@ public class TaskController {
     @GetMapping
     public List<TaskResponse> getTasks(Authentication authentication) {
         Integer userSid = RequestGuard.requireUserSid();
-        LogUtil.controller(TaskController.class, "tasks.list", userSid, authentication != null ? authentication.getName() : null, "invoked");
+        LogUtil.controller(TaskController.class, "tasks.list", userSid, authentication != null ? com.aitaskmanager.security.AuthUtils.getUserId(authentication) : null, "invoked");
         List<Tasks> tasks = taskService.getTasksByUserId(userSid);
         // すべて東京タイムゾーンで返す
         SimpleDateFormat dueSdf = new SimpleDateFormat("yyyy/MM/dd");
@@ -77,7 +77,7 @@ public class TaskController {
     @GetMapping("/tree")
     public List<TaskTreeResponse> getTaskTree(Authentication authentication) {
         Integer userSid = RequestGuard.requireUserSid();
-        LogUtil.controller(TaskController.class, "tasks.tree", userSid, authentication != null ? authentication.getName() : null, "invoked");
+        LogUtil.controller(TaskController.class, "tasks.tree", userSid, authentication != null ? com.aitaskmanager.security.AuthUtils.getUserId(authentication) : null, "invoked");
         return taskService.getTaskTree(userSid);
     }
 
@@ -91,7 +91,7 @@ public class TaskController {
     @PostMapping
     public Tasks createTask(@RequestBody TaskRequest request, Authentication authentication) {
         Integer userSid = RequestGuard.requireUserSid();
-        LogUtil.controller(TaskController.class, "tasks.create", userSid, authentication != null ? authentication.getName() : null, "invoked");
+        LogUtil.controller(TaskController.class, "tasks.create", userSid, authentication != null ? com.aitaskmanager.security.AuthUtils.getUserId(authentication) : null, "invoked");
         return taskService.createTask(userSid, request);
     }
 
@@ -106,7 +106,7 @@ public class TaskController {
     @PutMapping("/{id}")
     public ResponseEntity<Tasks> updateTask(@PathVariable("id") int id, @RequestBody TaskRequest request, Authentication authentication) {
         Integer userSid = RequestGuard.requireUserSid();
-        LogUtil.controller(TaskController.class, "tasks.update id=" + id, userSid, authentication != null ? authentication.getName() : null, "invoked");
+        LogUtil.controller(TaskController.class, "tasks.update id=" + id, userSid, authentication != null ? com.aitaskmanager.security.AuthUtils.getUserId(authentication) : null, "invoked");
         Tasks updated = taskService.updateTask(id, request, userSid);
         return ResponseEntity.ok(updated);
     }
@@ -122,7 +122,7 @@ public class TaskController {
     @PostMapping("/{id}/redecompose")
     public List<TaskTreeResponse> redecompose(@PathVariable("id") int id, @RequestBody TaskRequest request, Authentication authentication) {
         Integer userSid = RequestGuard.requireUserSid();
-        LogUtil.controller(TaskController.class, "tasks.redecompose id=" + id, userSid, authentication != null ? authentication.getName() : null, "invoked");
+        LogUtil.controller(TaskController.class, "tasks.redecompose id=" + id, userSid, authentication != null ? com.aitaskmanager.security.AuthUtils.getUserId(authentication) : null, "invoked");
         return taskService.redecomposeTask(userSid, id, request);
     }
 
@@ -135,7 +135,7 @@ public class TaskController {
     @PostMapping("/{id}/decompose")
     public List<TaskTreeResponse> decompose(@PathVariable int id, @RequestBody TaskRequest request, Authentication authentication) {
         Integer userSid = RequestGuard.requireUserSid();
-        LogUtil.controller(TaskController.class, "tasks.decompose id=" + id, userSid, authentication != null ? authentication.getName() : null, "invoked");
+        LogUtil.controller(TaskController.class, "tasks.decompose id=" + id, userSid, authentication != null ? com.aitaskmanager.security.AuthUtils.getUserId(authentication) : null, "invoked");
         return taskService.redecomposeTask(userSid, id, request);
     }
 
@@ -149,7 +149,7 @@ public class TaskController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteTask(@PathVariable("id") int id, Authentication authentication) {
         Integer userSid = RequestGuard.requireUserSid();
-        LogUtil.controller(TaskController.class, "tasks.delete id=" + id, userSid, authentication != null ? authentication.getName() : null, "invoked");
+        LogUtil.controller(TaskController.class, "tasks.delete id=" + id, userSid, authentication != null ? com.aitaskmanager.security.AuthUtils.getUserId(authentication) : null, "invoked");
         taskService.deleteTask(id, userSid);
         return ResponseEntity.noContent().build();
     }

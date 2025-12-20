@@ -1,6 +1,7 @@
 import apiClient from './apiClient';
 // AIクォータステータスの型定義
 export type AiQuotaStatus = {
+  planId: number | null;
   planName: string;
   unlimited: boolean;
   remaining: number | null;

@@ -89,6 +89,60 @@
   justify-content: flex-end;
 }
 
+/* ヘッダー中央のコンパクトエラー表示 */
+.header-inline-error {
+  text-align: center;
+  color: #b00020;
+  padding: 4px 0;
+}
+.header-inline-error-text {
+  font-size: 0.9rem;
+}
+
+/* プラン変更メッセージ（コンパクトチップ） */
+.plan-message {
+  text-align: center;
+  padding: 2px 0;
+}
+.plan-message-chip {
+  display: inline-block;
+  font-size: 0.85rem;
+  border-radius: 6px;
+  padding: 2px 8px;
+  border: 1px solid transparent;
+}
+.plan-message-chip.success {
+  color: #155724;
+  background-color: #d4edda;
+  border-color: #c3e6cb;
+}
+.plan-message-chip.error {
+  color: #721c24;
+  background-color: #f8d7da;
+  border-color: #f5c6cb;
+}
+
+/* ビュー切替ボタンのコンパクト化 */
+.view-toggle-btn {
+  font-size: 0.9rem;
+  line-height: 1.0;
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+/* 右側AIクオータ表示のインラインからクラス化 */
+.quota-info {
+  margin-left: auto;
+  padding-left: 12px;
+  color: #666;
+  max-width: 360px;
+}
+.quota-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 @media (max-width: 600px) {
   .dashboard-actions-top-right {
     top: 0;

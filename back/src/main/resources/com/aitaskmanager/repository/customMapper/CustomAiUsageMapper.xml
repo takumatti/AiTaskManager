@@ -2,11 +2,15 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.aitaskmanager.repository.customMapper.CustomAiUsageMapper">
   <select id="selectUsedCount" resultType="java.lang.Integer">
-    SELECT used_count
-    FROM ai_usage
-    WHERE user_sid = #{userSid}
-      AND year = #{year}
-      AND month = #{month}
+    SELECT COALESCE(
+      (
+        SELECT used_count
+        FROM ai_usage
+        WHERE user_sid = #{userSid}
+          AND year = #{year}
+          AND month = #{month}
+      ), 0
+    ) AS used_count
   </select>
   <insert id="upsertIncrement">
     INSERT INTO ai_usage (user_sid, year, month, used_count, updated_at)

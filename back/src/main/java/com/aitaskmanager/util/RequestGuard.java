@@ -12,8 +12,6 @@ public final class RequestGuard {
 
     private static final Logger log = LoggerFactory.getLogger(RequestGuard.class);
 
-    private RequestGuard() {}
-
     /**
      * 現在の認証コンテキストから内部数値ID（user_sid）を取得。nullなら401を投げる。
      * 

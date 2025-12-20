@@ -97,8 +97,9 @@ public class AuthController {
         // JWT生成用の数値UID（users.user_sid）を使用
         Long userSid = user.getUserSid();
         Integer uid = (userSid != null) ? Math.toIntExact(userSid) : null;
-        String accessToken = jwtTokenProvider.generateAccessToken(resolvedUserId, uid, roles);
-        String refreshToken = jwtTokenProvider.generateRefreshToken(resolvedUserId, uid, roles);
+        Integer planId = user.getPlanId();
+        String accessToken = jwtTokenProvider.generateAccessToken(resolvedUserId, uid, planId, roles);
+        String refreshToken = jwtTokenProvider.generateRefreshToken(resolvedUserId, uid, planId, roles);
 
         // RefreshToken 保存
         Date refreshTokenExpireAt = jwtTokenProvider.getRefreshTokenExpiryDate();
@@ -161,8 +162,11 @@ public class AuthController {
         // 新トークン発行（現在の認証情報からロール抽出）
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         var roles = jwtTokenProvider.extractRoles(authentication);
-        String newAccessToken = jwtTokenProvider.generateAccessToken(userId, uid, roles);
-        String newRefreshToken = jwtTokenProvider.generateRefreshToken(userId, uid, roles);
+        // 現在のユーザーのプランIDを再取得してクレームに含める
+        Users current = userMapper.selectByUserId(userId);
+        Integer planId = (current != null) ? current.getPlanId() : null;
+        String newAccessToken = jwtTokenProvider.generateAccessToken(userId, uid, planId, roles);
+        String newRefreshToken = jwtTokenProvider.generateRefreshToken(userId, uid, planId, roles);
 
         // RefreshToken の有効期限取得
         Date refreshTokenExpireAt = jwtTokenProvider.getRefreshTokenExpiryDate();

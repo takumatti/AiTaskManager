@@ -8,7 +8,6 @@ import jakarta.servlet.http.HttpServletRequest;
  * セキュリティ関連のユーティリティクラス
  */
 public final class SecurityUtils {
-    private SecurityUtils() {}
 
     /**
      * フィルターで設定されたリクエスト属性から現在のユーザーIDを取得（存在しない場合はnull）

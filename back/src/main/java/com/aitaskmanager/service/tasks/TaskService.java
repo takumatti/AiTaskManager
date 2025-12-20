@@ -415,9 +415,8 @@ public class TaskService {
         // まず SecurityContext の JWT クレームから plan_sid を取得
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         Integer planId = AuthUtils.getPlanId(auth);
-        // フォールバック: principal の user_sid からユーザー取得
         if (planId == null) {
-            String principalUserId = (auth != null) ? auth.getName() : null;
+            String principalUserId = (auth != null) ? com.aitaskmanager.security.AuthUtils.getUserId(auth) : null;
             Users u = (principalUserId != null) ? userMapper.selectByUserId(principalUserId) : null;
             if (u == null) {
                 throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "ユーザーが存在しません");

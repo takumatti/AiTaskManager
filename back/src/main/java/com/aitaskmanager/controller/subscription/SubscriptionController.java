@@ -52,7 +52,7 @@ public class SubscriptionController {
     public ResponseEntity<Map<String, Object>> changePlan(@RequestBody ChangePlanRequest request) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         Integer userSid = RequestGuard.requireUserSid();
-        String username = (auth != null) ? auth.getName() : null;
+        String username = (auth != null) ? com.aitaskmanager.security.AuthUtils.getUserId(auth) : null;
         LogUtil.controller(SubscriptionController.class, "subscriptions.change", userSid, username, "invoked");
         Map<String, Object> body = subscriptionService.changePlan(userSid, (username != null ? username : null), request != null ? request.getPlanId() : null);
         return ResponseEntity.ok(body);

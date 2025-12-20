@@ -9,9 +9,6 @@ import org.springframework.security.core.Authentication;
  */
 public final class AuthUtils {
 
-    /** プライベートコンストラクタ */
-    private AuthUtils() {}
-
     /**
      * Authentication から JWT クレーム群（claims）を安全に取り出す
      *
@@ -44,6 +41,22 @@ public final class AuthUtils {
     }
 
     /**
+     * 認証情報から文字列の user_id（subject）を取得する
+     *
+     * @param auth 認証情報
+     * @return user_id（subject）。認証情報が無ければ null。
+     */
+    public static String getUserId(Authentication auth) {
+        if (auth == null) return null;
+        try { 
+            return auth.getName(); 
+        } 
+        catch (Exception ignored) {
+            return null; 
+        }
+    }
+
+    /**
      * 認証情報からユーザーSIDを取得する
      * 
      * @param auth 認証情報
@@ -56,7 +69,10 @@ public final class AuthUtils {
         if (v instanceof Integer i) return i;
         if (v instanceof Number n) return n.intValue();
         if (v instanceof String s) {
-            try { return Integer.valueOf(s); } catch (NumberFormatException ignored) {}
+            try {
+                return Integer.valueOf(s);
+            } 
+            catch (NumberFormatException ignored) {}
         }
         return null;
     }
@@ -70,11 +86,15 @@ public final class AuthUtils {
     public static Integer getPlanId(Authentication auth) {
         Map<String, Object> claims = extractClaims(auth);
         if (claims == null) return null;
-        Object v = claims.get("plan_id");
+        // クレーム名の互換対応: 新規 "planId"、旧来 "plan_id" の両方を受理
+        Object v = claims.get("planId");
+        if (v == null) v = claims.get("plan_id");
         if (v instanceof Integer i) return i;
         if (v instanceof Number n) return n.intValue();
         if (v instanceof String s) {
-            try { return Integer.valueOf(s); } catch (NumberFormatException ignored) {}
+            try {
+                return Integer.valueOf(s);
+            } catch (NumberFormatException ignored) {}
         }
         return null;
     }

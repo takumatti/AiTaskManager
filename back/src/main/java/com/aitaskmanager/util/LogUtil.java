@@ -8,8 +8,6 @@ import org.slf4j.LoggerFactory;
  */
 public final class LogUtil {
 
-    private LogUtil() {}
-
     /**
      * コントローラ用の統一ログ（入口ログなど）。
      * 例: [Controller] tasks.delete id=123 userId=1 username=alice invoked
