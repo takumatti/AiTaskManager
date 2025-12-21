@@ -12,6 +12,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.beans.factory.annotation.Value;
 
 import com.aitaskmanager.repository.customMapper.CustomAiUsageMapper;
 import com.aitaskmanager.security.AuthUtils;
@@ -42,6 +43,9 @@ public class AiQuotaController {
     @Autowired
     private CustomAiUsageMapper customAiUsageMapper;
 
+    @Value("${openai.apiKey:}")
+    private String openaiApiKey;
+
     /**
      * 現在のユーザーのAIクォータ情報を取得するエンドポイント
      *
@@ -53,8 +57,7 @@ public class AiQuotaController {
         LogUtil.controller(AiQuotaController.class, "ai.quota", null, auth0 != null ? AuthUtils.getUserId(auth0) : null, "invoked");
         try {
             // OPENAI未設定時でもプラン情報は返せるよう、フラグのみ設定
-            String apiKey = System.getProperty("openai.apiKey", System.getenv("OPENAI_API_KEY"));
-            boolean aiConfigured = !(apiKey == null || apiKey.isBlank());
+            boolean aiConfigured = !(openaiApiKey == null || openaiApiKey.isBlank());
 
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             if (auth == null || !auth.isAuthenticated()) {

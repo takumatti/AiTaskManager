@@ -7,6 +7,7 @@ import java.util.TimeZone;
 import java.text.SimpleDateFormat;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.stereotype.Service;
@@ -50,6 +51,14 @@ public class TaskService {
 
     @Autowired
     private OpenAiDecomposeService openAiDecomposeService;
+
+    // OpenAI APIキーはapplication.propertiesから取得（環境変数依存を排除）
+    @Value("${openai.apiKey:}")
+    private String openaiApiKey;
+    
+    // 一時停止用のフラグ（課金回避のため当面OFFにできる）
+    @Value("${openai.enabled}")
+    private boolean openaiEnabled;
 
     /**
      * ユーザーIDに基づいてタスクを取得する
@@ -96,7 +105,14 @@ public class TaskService {
         log.debug("[TaskService] createTask parent inserted taskSid={} parentTaskSid={} (should be null for root)", task.getTaskSid(), task.getParentTaskSid());
 
         if (Boolean.TRUE.equals(request.getAi_decompose())) {
-            generateChildTasks(task.getTaskSid(), userSid, request, "create");
+            // 作成時にAI細分化が要求された場合はAIモードで子生成を実施
+            // フラグがOFFならAI分解をスキップ（エラーにせず通常作成を継続）
+            if (!openaiEnabled) {
+                log.info("[TaskService] AI decomposition skipped due to openai.enabled=false. parentSid={} mode={} ", task.getTaskSid(), "ai");
+                return task;
+            } else {
+                generateChildTasks(task.getTaskSid(), userSid, request, "ai");
+            }
         }
         LogUtil.service(TaskService.class, "tasks.create", "taskSid=" + task.getTaskSid() + " userSid=" + userSid, "completed");
         return task;
@@ -259,8 +275,16 @@ public class TaskService {
             return; // 親の更新/作成は成功させつつ子生成は行わない
         }
 
-        // プランのAIクォータを確認
-        enforceAiQuotaOrThrow(userSid);
+        // AI操作時のみクォータ/設定チェックを適用
+        boolean aiRequested = "ai".equalsIgnoreCase(mode);
+        if (aiRequested) {
+            // プランのAIクォータを確認（AI未設定や上限超過時はエラー）
+            enforceAiQuotaOrThrow(userSid);
+        } else {
+            // 通常作成ではAIチェックをスキップして子生成ロジックもスキップ
+            log.info("[TaskService] generateChildTasks skipped (non-AI mode). mode={} parentSid={}", mode, parentTaskSid);
+            return;
+        }
 
         String baseTitle = TaskUtils.defaultString(request.getTitle(), "").trim();
         String baseDesc = TaskUtils.defaultString(request.getDescription(), "").trim();
@@ -445,7 +469,8 @@ public class TaskService {
         }
 
         // APIキー存在確認（OpenAI連携が有効であること）
-        String apiKey = System.getenv("OPENAI_API_KEY");
+        // application.propertiesのopenai.apiKeyを使用
+        String apiKey = openaiApiKey;
         if (apiKey == null || apiKey.isBlank()) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "AI連携が未設定です（管理者へお問い合わせください）");
         }
