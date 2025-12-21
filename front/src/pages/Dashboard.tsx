@@ -93,6 +93,8 @@ const Dashboard = () => {
   const [planMessage, setPlanMessage] = useState<{type: 'success' | 'error'; text: string} | null>(null);
   // 画面上に表示する削除エラー
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  // 設定手順モーダル表示
+  const [showDocsModal, setShowDocsModal] = useState(false);
 
   // タスク一覧取得
   useEffect(() => {
@@ -310,7 +312,16 @@ const Dashboard = () => {
     <div className="dashboard-container">
       <div className="dashboard-card">
         <div className="dashboard-header header-row">
-          <div className="dashboard-header-top">
+          <div className="dashboard-header-top" style={{ position: 'relative' }}>
+            {/* 左上の絶対配置ボタン（管理者のみ表示）。タイトルのレイアウトに影響しない */}
+            {isAdmin && (
+              <button
+                className="btn btn-sm btn-outline-secondary"
+                onClick={() => setShowDocsModal(true)}
+                title="設定手順"
+                style={{ position: 'absolute', left: 0, top: 0 }}
+              >設定手順</button>
+            )}
             <div className="dashboard-title-inline">タスク一覧</div>
             <div className="dashboard-header-actions">
               <button
@@ -373,10 +384,6 @@ const Dashboard = () => {
                     <button className="btn btn-sm btn-outline-secondary" onClick={reloadQuota} disabled={quotaLoading}>
                       {quotaLoading ? "再試行中..." : "再試行"}
                     </button>
-                    {/* 管理者のみ設定手順リンクを表示（簡易判定: ユーザー名が 'admin'）*/}
-                    {isAdmin && (
-                      <a className="link-secondary" href="/docs/ai-setup" target="_blank" rel="noreferrer">設定手順</a>
-                    )}
                   </>
                 ) : aiQuota ? (
                   aiQuota.unlimited ? (
@@ -572,6 +579,7 @@ const Dashboard = () => {
                         </label>
                       </div>
                     ))}
+
                     {!plans?.length && <div className="text-muted">プランがありません</div>}
                   </div>
                 )}
@@ -596,6 +604,40 @@ const Dashboard = () => {
                     }
                   }}
                 >適用</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* 設定手順選択モーダル（AI/Stripe）: プラン変更モーダルの外に配置し、常に表示可能にする */}
+      {showDocsModal && (
+        <div className="modal d-block" tabIndex={-1}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">設定手順を選択</h5>
+                <button type="button" className="btn-close" onClick={() => setShowDocsModal(false)}></button>
+              </div>
+              <div className="modal-body">
+                <div className="vstack gap-3">
+                  <div className="p-2 border rounded">
+                    <div className="fw-bold">AI連携の設定</div>
+                    <div className="text-muted" style={{ fontSize: '0.9rem' }}>OpenAI APIキーの設定方法と動作確認手順</div>
+                    <div className="mt-2">
+                      <a className="btn btn-outline-primary" href="/docs/ai-setup" target="_blank" rel="noreferrer">AI設定手順を開く</a>
+                    </div>
+                  </div>
+                  <div className="p-2 border rounded">
+                    <div className="fw-bold">Stripe導入手順</div>
+                    <div className="text-muted" style={{ fontSize: '0.9rem' }}>Checkout と Webhook の設定、テストから本番まで</div>
+                    <div className="mt-2">
+                      <a className="btn btn-outline-success" href="/docs/stripe-setup" target="_blank" rel="noreferrer">Stripe導入手順を開く</a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setShowDocsModal(false)}>閉じる</button>
               </div>
             </div>
           </div>
