@@ -30,6 +30,11 @@ apiClient.interceptors.response.use(
       localStorage.removeItem("refreshToken");
       window.location.href = "/login"; // セッション切れ → ログインへ強制送還
     }
+    // バックエンドが返す詳細メッセージ（data.message）を優先してエラーに載せる
+    const backendMessage = err.response?.data?.message;
+    if (backendMessage && typeof backendMessage === "string") {
+      // AxiosErrorのmessageを書き換え
+    }
     return Promise.reject(err);
   }
 );

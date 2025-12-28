@@ -46,7 +46,8 @@ import { TaskLegend } from "../components/tasks/TaskLegend";
 import { TaskFilters } from "../components/tasks/TaskFilters";
 import { TaskSort } from "../components/tasks/TaskSort";
 import { TaskCreateForm } from "../components/tasks/TaskCreateForm";
-import { fetchAiQuotaStatus, type AiQuotaStatus, fetchPlans, changePlan, type SubscriptionPlan } from "../api/aiApi";
+import { fetchAiQuotaStatus, type AiQuotaStatus, fetchPlans, type SubscriptionPlan } from "../api/aiApi";
+import apiClient from "../api/apiClient";
 // スタイル
 import "./Dashboard.css";
 import "./DashboardFilters.css";
@@ -107,6 +108,17 @@ const Dashboard = () => {
       }
     };
     load();
+  }, []);
+
+  // 決済成功時のメッセージ（成功ページからのフラグを検知）
+  useEffect(() => {
+    const flag = localStorage.getItem('purchaseSuccess');
+    if (flag === 'true') {
+      localStorage.removeItem('purchaseSuccess');
+      setPlanMessage({ type: 'success', text: '購入が完了しました。プランが適用されました。' });
+      const t = setTimeout(() => setPlanMessage(null), 5000);
+      return () => clearTimeout(t);
+    }
   }, []);
 
   // AIクオータ取得
@@ -313,7 +325,7 @@ const Dashboard = () => {
       <div className="dashboard-card">
         <div className="dashboard-header header-row">
           <div className="dashboard-header-top" style={{ position: 'relative' }}>
-            {/* 左上の絶対配置ボタン（管理者のみ表示）。タイトルのレイアウトに影響しない */}
+            {/* 左上の設定手順ボタン（管理者のみ） */}
             {isAdmin && (
               <button
                 className="btn btn-sm btn-outline-secondary"
@@ -352,8 +364,14 @@ const Dashboard = () => {
             </div>
           )}
           {planMessage && (
-            <div className="plan-message">
+            <div className="plan-message" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span className={`plan-message-chip ${planMessage.type === 'success' ? 'success' : 'error'}`}>{planMessage.text}</span>
+              <button
+                type="button"
+                aria-label="閉じる"
+                className="btn btn-sm btn-outline-secondary"
+                onClick={() => setPlanMessage(null)}
+              >×</button>
             </div>
           )}
           <div className="dashboard-header-sub">
@@ -539,7 +557,7 @@ const Dashboard = () => {
       {/* プラン変更モーダル */}
       {showPlanModal && (
         <div className="modal d-block" tabIndex={-1}>
-          <div className="modal-dialog">
+          <div className="modal-dialog modal-sm" style={{ maxWidth: '420px' }}>
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">プランを選択</h5>
@@ -587,23 +605,22 @@ const Dashboard = () => {
               <div className="modal-footer">
                 <button className="btn btn-secondary" onClick={() => { setShowPlanModal(false); setSelectedPlanId(null); }}>閉じる</button>
                 <button
-                  className="btn btn-primary"
+                  className="btn btn-success"
                   disabled={!selectedPlanId}
                   onClick={async () => {
                     if (!selectedPlanId) return;
                     try {
-                      await changePlan(selectedPlanId);
-                      await reloadQuota();
-                      setShowPlanModal(false);
-                      setSelectedPlanId(null);
-                      setPlanMessage({ type: 'success', text: 'プランを変更しました' });
-                      setTimeout(() => setPlanMessage(null), 4000);
-                    } catch {
-                      setPlanMessage({ type: 'error', text: 'プラン変更に失敗しました' });
+                      const resp = await apiClient.post(`/api/billing/checkout-session`, null, { params: { planId: selectedPlanId } });
+                      const url = resp?.data?.sessionUrl;
+                      if (!url) throw new Error('sessionUrl missing');
+                      window.location.href = url;
+                    } catch (e) {
+                      console.error('Checkout開始に失敗しました', e);
+                      setPlanMessage({ type: 'error', text: 'Checkoutの開始に失敗しました' });
                       setTimeout(() => setPlanMessage(null), 4000);
                     }
                   }}
-                >適用</button>
+                >購入画面へ</button>
               </div>
             </div>
           </div>
@@ -643,6 +660,7 @@ const Dashboard = () => {
           </div>
         </div>
       )}
+
     </div>
   );
 };

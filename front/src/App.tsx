@@ -6,6 +6,8 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import GuestRoute from "./components/GuestRoute";
 import AiSetup from "./pages/AiSetup";
 import StripeSetup from "./pages/StripeSetup";
+import StripeSuccess from "./pages/StripeSuccess";
+import StripeCancel from "./pages/StripeCancel";
 
 export default function App() {
   return (
@@ -31,10 +33,16 @@ export default function App() {
           }
         />
 
-  {/* ドキュメント（AI設定手順） */}
+        {/* ドキュメント（AI設定手順） */}
         <Route path="/docs/ai-setup" element={<AiSetup />} />
-  {/* ドキュメント（Stripe導入手順） */}
-  <Route path="/docs/stripe-setup" element={<StripeSetup />} />
+        
+        {/* ドキュメント（Stripe導入手順） */}
+        <Route path="/docs/stripe-setup" element={<StripeSetup />} />
+        
+        {/* Stripe Checkout 成功/キャンセル */}
+        <Route path="/stripe/success" element={<StripeSuccess />} />
+        <Route path="/stripe/cancel" element={<StripeCancel />} />
+      
       </Routes>
     </BrowserRouter>
   );

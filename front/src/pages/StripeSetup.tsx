@@ -22,57 +22,41 @@ const StripeSetup: React.FC = () => {
       <h5 style={{ marginTop: 16 }}>2. Products / Prices の作成</h5>
       <ol>
         <li>
-          左メニュー「Products」から各プランに対応する Product と Price（月額など）を作成します。
-        </li>
-        <li style={{ marginTop: 8 }}>
-          後でバックエンドの `subscription_plans` に <code>stripe_price_id</code> を紐付ける設計にします（あとで実装）。
+          左メニュー「商品カタログ（Products）」から各プランに対応する Product と Price（月額など）を作成します。
         </li>
       </ol>
 
-      <h5 style={{ marginTop: 16 }}>3. Webhook の設定</h5>
+      <h5 style={{ marginTop: 16 }}>3. Webhook の設定（ローカル開発）</h5>
       <ol>
         <li>
-          ダッシュボード「Developers → Webhooks」で受信エンドポイントを登録します（後でサーバー側に <code>/api/billing/webhook</code> を用意）。
+          バックエンドの受け口は <code>/webhook/stripe</code> を使用します（署名検証あり）。
         </li>
         <li style={{ marginTop: 8 }}>
-          署名検証用の <code>webhook signing secret</code> を控えておきます（<code>stripe.webhookSecret</code>）。
+          Stripe CLI を使ってローカルへ転送します：
+          <pre style={{ whiteSpace: "pre-wrap" }}>{`stripe login\nstripe listen --forward-to localhost:8080/webhook/stripe`}</pre>
         </li>
         <li style={{ marginTop: 8 }}>
-          ローカル開発では Stripe CLI を使い、Webhook をローカルへフォワードするのが便利です（任意）。
+          コンソールに表示される <code>Signing secret: whsec_...</code> を <code>application.properties</code> の <code>stripe.webhookSecret</code> に設定します。
         </li>
       </ol>
 
       <h5 style={{ marginTop: 16 }}>4. バックエンド設定</h5>
       <ul>
         <li>
-          `back/src/main/resources/application.properties` に以下を設定（テストキーでOK）：
-          <pre style={{ whiteSpace: "pre-wrap" }}>{`stripe.apiKey=sk_test_...\nstripe.webhookSecret=whsec_...\napp.baseUrl=http://localhost:5173`}</pre>
+          <code>back/src/main/resources/application.properties</code> に以下を設定（テストキーでOK）：
+          <pre style={{ whiteSpace: "pre-wrap" }}>{`stripe.apiKey=sk_test_...\nstripe.webhookSecret=whsec_...\nstripe.successUrl=http://localhost:5173/stripe/success\nstripe.cancelUrl=http://localhost:5173/stripe/cancel`}</pre>
         </li>
-        <li>
-          後で次の API を追加します：
-          <ul>
-            <li>POST <code>/api/billing/checkout</code>（Checkout セッション作成）</li>
-            <li>POST <code>/api/billing/webhook</code>（決済完了の受信／DB反映）</li>
-            <li>GET <code>/api/billing/history</code>（決済履歴の取得）</li>
-            <li>GET <code>/api/billing/subscription</code>（契約情報の取得）</li>
-          </ul>
-        </li>
+        <li>Checkoutは <b>一回払い（PAYMENTモード）</b> を使用しています。RecurringのPriceを使う場合はSUBSCRIPTIONへ切り替えます。</li>
       </ul>
 
       <h5 style={{ marginTop: 16 }}>5. フロントの動作フロー（概要）</h5>
       <ol>
-        <li>
-          プラン変更モーダルから「購入/変更」を押下 → サーバの <code>/api/billing/checkout</code> を呼ぶ。
-        </li>
+        <li>プラン変更モーダルから「購入」を押下 → サーバの <code>/api/billing/checkout-session</code> を呼ぶ。</li>
         <li>
           返ってきた <code>sessionUrl</code> にリダイレクトして Stripe Checkout で支払い。
         </li>
-        <li>
-          Webhook で <code>checkout.session.completed</code> 等を受信 → DBへ「決済履歴」「契約情報」「ユーザーの planId」などを反映。
-        </li>
-        <li>
-          ダッシュボードへ戻ったら <code>/api/billing/subscription</code> を再取得して表示更新（AI枠もプランに応じて更新）。
-        </li>
+        <li>成功/キャンセル後に <code>/stripe/success</code> / <code>/stripe/cancel</code> へ戻ります（ページは用意済み、成功は自動でダッシュボードへ遷移）。</li>
+        <li>必要に応じて Webhook（<code>checkout.session.completed</code>）で決済履歴などをDBへ保存します。</li>
       </ol>
 
       <h5 style={{ marginTop: 16 }}>6. 本番切り替えの注意点</h5>

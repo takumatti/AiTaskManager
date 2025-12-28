@@ -12,7 +12,6 @@ import org.springframework.web.server.ResponseStatusException;
 import com.aitaskmanager.repository.customMapper.UserMapper;
 import com.aitaskmanager.repository.generator.SubscriptionPlansMapper;
 import com.aitaskmanager.repository.model.SubscriptionPlans;
-import com.aitaskmanager.repository.model.Users;
 import com.aitaskmanager.util.LogUtil;
 import lombok.extern.slf4j.Slf4j;
 
@@ -25,9 +24,6 @@ public class SubscriptionService {
 
     @Autowired
     private SubscriptionPlansMapper subscriptionPlansMapper;
-
-    @Autowired
-    private UserMapper userMapper;
 
     /**
      * すべてのプランを取得してクライアント向けの簡易マップへ整形
@@ -55,42 +51,4 @@ public class SubscriptionService {
         }
     }
 
-    /**
-     * 現在ユーザーのプランを変更
-     * @param userSid 内部数値ID（ログ用）
-     * @param userId  文字列の user_id（更新キー）
-     * @param planId  変更先プランID
-     * @return レスポンス用マップ
-     */
-    public Map<String, Object> changePlan(Integer userSid, String userId, Integer planId) {
-        LogUtil.service(SubscriptionService.class, "subscriptions.change", "userSid=" + userSid + " userId=" + userId + " planId=" + planId, "started");
-        try {
-            if (userId == null || userId.isBlank()) {
-                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "unauthorized");
-            }
-            Users user = userMapper.selectByUserId(userId);
-            if (user == null) {
-                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "user-not-found");
-            }
-            if (planId == null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "invalid-plan");
-            }
-            SubscriptionPlans plan = subscriptionPlansMapper.selectByPrimaryKey(planId);
-            if (plan == null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "invalid-plan");
-            }
-            userMapper.updatePlanId(userId, planId);
-            LogUtil.service(SubscriptionService.class, "subscriptions.change", "userSid=" + userSid + " planId=" + planId, "completed");
-            return Map.of(
-                "message", "ok",
-                "planId", plan.getSubscriptionPlanSid(),
-                "planName", plan.getName()
-            );
-        } catch (ResponseStatusException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            log.error("[Service] subscriptions.change unexpected-error userSid={} userId={} planId={}", userSid, userId, planId, ex);
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "プラン変更に失敗しました");
-        }
-    }
 }
