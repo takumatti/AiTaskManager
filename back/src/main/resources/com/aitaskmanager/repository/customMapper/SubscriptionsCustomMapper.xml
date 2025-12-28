@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aitaskmanager.repository.customMapper.SubscriptionsCustomMapper">
+  <insert id="insertSubscription">
+    INSERT INTO subscriptions (user_sid, plan_sid, status, started_at, expires_at, updated_at)
+    VALUES (#{userSid}, #{planSid}, 'ACTIVE', CURRENT_TIMESTAMP, #{expiresAt}, CURRENT_TIMESTAMP)
+  </insert>
+  <select id="hasActive" resultType="int">
+    SELECT COUNT(1)
+    FROM subscriptions
+    WHERE user_sid = #{userSid}
+      AND plan_sid = #{planSid}
+      AND status = 'ACTIVE'
+      AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+  </select>
+</mapper>

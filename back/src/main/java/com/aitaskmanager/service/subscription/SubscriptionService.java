@@ -9,7 +9,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import com.aitaskmanager.repository.customMapper.UserMapper;
 import com.aitaskmanager.repository.generator.SubscriptionPlansMapper;
 import com.aitaskmanager.repository.model.SubscriptionPlans;
 import com.aitaskmanager.util.LogUtil;
@@ -38,6 +37,7 @@ public class SubscriptionService {
                 Map<String, Object> m = new HashMap<>();
                 m.put("id", p.getSubscriptionPlanSid());
                 m.put("name", p.getName());
+                m.put("description", p.getDescription());
                 m.put("aiQuota", p.getAiQuota());
                 return m;
             }).toList();

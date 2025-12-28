@@ -1,0 +1,32 @@
+package com.aitaskmanager.repository.customMapper;
+
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+
+/**
+ * Subscriptionsテーブルに対するカスタムマッパー
+ */
+@Mapper
+public interface SubscriptionsCustomMapper {
+
+    /**
+     * サブスクリプションを挿入する
+     * 
+     * @param userSid ユーザーSID
+     * @param planSid プランSID
+     * @param expiresAt 有効期限
+     * @return 挿入された行数
+     */
+    int insertSubscription(@Param("userSid") int userSid,
+                           @Param("planSid") int planSid,
+                           @Param("expiresAt") java.sql.Timestamp expiresAt);
+
+    /**
+     * アクティブなサブスクリプションが存在するか確認する
+     * 
+     * @param userSid ユーザーSID
+     * @param planSid プランSID
+     * @return 存在する場合は1、存在しない場合は0
+     */
+    int hasActive(@Param("userSid") int userSid, @Param("planSid") int planSid);
+}

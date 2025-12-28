@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -50,6 +51,7 @@ public class OpenAiDecomposeService {
      * @param description プロジェクト説明
      * @return 分解されたタスクのリスト（失敗時は空リスト）
      */
+    @Transactional(rollbackFor = Exception.class)
     public List<String> decompose(String description) {
         String apiKey = configuredApiKey;
         if (apiKey == null || apiKey.isBlank()) {

@@ -16,6 +16,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.HttpMethod;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -48,6 +49,7 @@ public class SecurityConfig {
             // 認可設定
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()  // 認証系エンドポイントは全許可
+                .requestMatchers(HttpMethod.POST, "/webhook/stripe").permitAll() // Stripe Webhook は認証不要
                 .anyRequest().authenticated()
             )
             // 例外ハンドラ追加

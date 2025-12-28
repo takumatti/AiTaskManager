@@ -98,8 +98,11 @@ public class AiQuotaController {
             // 今月のAI使用量を取得
             LocalDate now = LocalDate.now();
             Integer uid = (user.getUserSid() != null) ? Math.toIntExact(user.getUserSid()) : null;
-            Integer usedCount = (uid != null) ? customAiUsageMapper.selectUsedCount(uid, now.getYear(), now.getMonthValue()) : 0;
-            int used = (usedCount != null) ? usedCount.intValue() : 0;
+                Integer usedCount = (uid != null) ? customAiUsageMapper.selectUsedCount(uid, now.getYear(), now.getMonthValue()) : 0;
+                int used = (usedCount != null) ? usedCount.intValue() : 0;
+                // ボーナス回数（回数パック）を取得
+                Integer bonusCount = (uid != null) ? customAiUsageMapper.selectBonusCount(uid, now.getYear(), now.getMonthValue()) : 0;
+                int bonus = (bonusCount != null) ? bonusCount.intValue() : 0;
 
             // レスポンス作成
             Map<String, Object> body = new HashMap<>();
@@ -108,7 +111,7 @@ public class AiQuotaController {
             body.put("planResolve", planResolve);
             boolean unlimited = (aiQuota == null);
             body.put("unlimited", unlimited);
-            Integer remaining = unlimited ? null : Integer.valueOf(Math.max(0, aiQuota - used));
+            Integer remaining = unlimited ? null : Integer.valueOf(Math.max(0, aiQuota + bonus - used));
             body.put("remaining", remaining);
             body.put("aiConfigured", aiConfigured);
             if (!aiConfigured) {

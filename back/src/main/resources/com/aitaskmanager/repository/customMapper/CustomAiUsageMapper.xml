@@ -18,4 +18,25 @@
     ON CONFLICT (user_sid, year, month)
     DO UPDATE SET used_count = ai_usage.used_count + 1, updated_at = now()
   </insert>
+  
+  <!-- ボーナス回数の取得（存在しない場合は0を返す） -->
+  <select id="selectBonusCount" resultType="java.lang.Integer">
+    SELECT COALESCE(
+      (
+        SELECT bonus_count
+        FROM ai_usage
+        WHERE user_sid = #{userSid}
+          AND year = #{year}
+          AND month = #{month}
+      ), 0
+    ) AS bonus_count
+  </select>
+
+  <!-- ボーナス回数の加算（UPSERT） -->
+  <insert id="upsertAddBonus">
+    INSERT INTO ai_usage (user_sid, year, month, used_count, bonus_count, updated_at)
+    VALUES (#{userSid}, #{year}, #{month}, 0, #{amount}, now())
+    ON CONFLICT (user_sid, year, month)
+    DO UPDATE SET bonus_count = ai_usage.bonus_count + #{amount}, updated_at = now()
+  </insert>
 </mapper>

@@ -135,4 +135,87 @@ public class StripeBillingService {
             throw new RuntimeException("Stripe Checkout セッション作成に失敗しました: " + sb.toString(), e);
         }
     }
+
+    /**
+     * クレジットパック用のCheckoutセッションを作成（Price IDからクレジット数をサーバーで確定）
+     * 
+     * @param priceId Stripe Price ID
+     * @param userId ユーザーID
+     * @return CheckoutセッションのURL
+     */
+    public String createCheckoutSessionForCredit(String priceId, String userId) {
+        log.info("[Stripe] createCheckoutSessionForCredit start: priceId={} userId={}", priceId, userId);
+        Stripe.apiKey = stripeApiKey;
+
+        // Price ID -> クレジット数のマッピング（暫定）。本番では設定やDBで管理することを推奨
+        int creditAmount = mapCreditAmount(priceId)
+                .orElseThrow(() -> new IllegalArgumentException("対応するクレジットパックが見つかりません (priceId=" + priceId + ")"));
+
+        if (successUrl == null || successUrl.isBlank()) {
+            throw new IllegalStateException("stripe.successUrl が未設定です");
+        }
+        if (cancelUrl == null || cancelUrl.isBlank()) {
+            throw new IllegalStateException("stripe.cancelUrl が未設定です");
+        }
+
+        SessionCreateParams params = SessionCreateParams.builder()
+                .setMode(SessionCreateParams.Mode.PAYMENT)
+                .addLineItem(SessionCreateParams.LineItem.builder()
+                    .setPrice(priceId)
+                    .setQuantity(1L)
+                    .build())
+                .putMetadata("userId", userId)
+                .putMetadata("type", "credit_pack")
+                .putMetadata("amount", String.valueOf(creditAmount))
+                .setSuccessUrl(successUrl)
+                .setCancelUrl(cancelUrl)
+                .build();
+
+        try {
+            log.info("[Stripe] Calling Session.create (credit pack) ...");
+            Session session = Session.create(params);
+            log.info("[Stripe] Session.create done. sessionId={} url={} (creditAmount={})", session.getId(), session.getUrl(), creditAmount);
+            return session.getUrl();
+        } catch (InvalidRequestException e) {
+            var err = e.getStripeError();
+            log.error("Stripe InvalidRequest caught. error={} message={} code={} param={} type={}",
+                    err, e.getMessage(), err != null ? err.getCode() : null,
+                    err != null ? err.getParam() : null,
+                    err != null ? err.getType() : null);
+            throw new RuntimeException("Stripe Checkout セッション作成に失敗しました: " + (err != null ? err.getMessage() : e.getMessage()), e);
+        } catch (StripeException e) {
+            var err = e.getStripeError();
+            StringBuilder sb = new StringBuilder();
+            if (err != null) {
+                sb.append("type=").append(err.getType()).append("; ");
+                if (err.getCode() != null) sb.append("code=").append(err.getCode()).append("; ");
+                if (err.getParam() != null) sb.append("param=").append(err.getParam()).append("; ");
+                if (err.getMessage() != null) sb.append("message=").append(err.getMessage());
+            } else if (e.getMessage() != null) {
+                sb.append(e.getMessage());
+            } else {
+                sb.append("unknown");
+            }
+            log.error("StripeException error message assembled: {}", sb);
+            throw new RuntimeException("Stripe Checkout セッション作成に失敗しました: " + sb.toString(), e);
+        }
+    }
+
+    /** 
+     * Price IDからクレジット数を解決する暫定マッピング 
+     * 
+     * @param priceId Stripe Price ID
+     * @return クレジット数のOptional
+     */
+    private Optional<Integer> mapCreditAmount(String priceId) {
+        // 仮のマッピング: 5/10/30回パック。実際のPrice IDが決まり次第、ここを置き換えるか設定/DB管理へ移行する
+        // 例: price_credit_5, price_credit_10, price_credit_30
+        if (priceId == null) return Optional.empty();
+        return switch (priceId) {
+            case "price_credit_5" -> Optional.of(5);
+            case "price_credit_10" -> Optional.of(10);
+            case "price_credit_30" -> Optional.of(30);
+            default -> Optional.empty();
+        };
+    }
 }

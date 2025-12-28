@@ -49,6 +49,33 @@ public class BillingController {
     }
 
     /**
+     * クレジットパック用のStripe Checkoutセッションを作成するエンドポイント
+     * クライアントからStripeのPrice IDを受け取り、サーバー側でパックサイズを確定する
+     * 
+     * @param priceId Stripe Price ID
+     * @param authentication 認証情報
+     * @return セッションURLを含むレスポンスエンティティ
+     */
+    @PostMapping("/checkout-credit")
+    public ResponseEntity<?> createCreditCheckout(@RequestParam("priceId") String priceId,
+                                                  Authentication authentication) {
+        String userId = AuthUtils.getUserId(authentication);
+        if (userId == null || userId.isBlank()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ErrorResponse("invalid-user"));
+        }
+        try {
+            var url = stripeBillingService.createCheckoutSessionForCredit(priceId, userId);
+            return ResponseEntity.ok().body(new SessionUrlResponse(url));
+        } catch (IllegalArgumentException e) {
+            log.warn("Credit CheckoutSession validation failed: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ErrorResponse(e.getMessage()));
+        } catch (RuntimeException e) {
+            log.error("Credit CheckoutSession creation failed: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ErrorResponse(e.getMessage()));
+        }
+    }
+
+    /**
      * セッションURLレスポンスDTO
      */
     public record SessionUrlResponse(String sessionUrl) {}

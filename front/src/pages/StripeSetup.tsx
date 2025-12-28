@@ -59,7 +59,14 @@ const StripeSetup: React.FC = () => {
         <li>必要に応じて Webhook（<code>checkout.session.completed</code>）で決済履歴などをDBへ保存します。</li>
       </ol>
 
-      <h5 style={{ marginTop: 16 }}>6. 本番切り替えの注意点</h5>
+      <h5 style={{ marginTop: 16 }}>6. テスト環境時の注意点</h5>
+      <ul>
+        <li>ローカル開発でStripeのWebhookを受ける間は、stripe listenを起動しっぱなしにする必要があります。</li>
+        <li>StripeはクラウドからあなたのPCに直接届きません。stripe listenがトンネル役になって、Stripe→(CLI)→http://localhost:8080/webhook/stripe に転送します。CLIを止めると転送も止まります。</li>
+        <li>本番など、インターネットから到達可能な公開URLをStripeダッシュボードに登録している場合は不要です。</li>
+      </ul>
+
+      <h5 style={{ marginTop: 16 }}>7. 本番切り替えの注意点</h5>
       <ul>
         <li>本番キー（sk_live...）に切り替えたら、Price も本番のものを参照してください。</li>
         <li>Webhook の URL と署名シークレットも本番用に再設定が必要です。</li>

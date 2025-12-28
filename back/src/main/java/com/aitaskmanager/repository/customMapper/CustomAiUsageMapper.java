@@ -31,4 +31,29 @@ public interface CustomAiUsageMapper {
     void upsertIncrement(@Param("userSid") Integer userSid,
                          @Param("year") Integer year,
                          @Param("month") Integer month);
+
+    /**
+     * 指定されたユーザーSIDと年月のボーナス回数（回数パック）を取得する
+     *
+     * @param userSid ユーザーSID
+     * @param year 対象年
+     * @param month 対象月
+     * @return ボーナス回数（存在しない場合はNULL）
+     */
+    Integer selectBonusCount(@Param("userSid") Integer userSid,
+                             @Param("year") Integer year,
+                             @Param("month") Integer month);
+
+    /**
+     * 指定されたユーザーSIDと年月のボーナス回数（回数パック）を加算する（行がなければINSERT）
+     *
+     * @param userSid ユーザーSID
+     * @param year 対象年
+     * @param month 対象月
+     * @param amount 追加する回数
+     */
+    void upsertAddBonus(@Param("userSid") Integer userSid,
+                        @Param("year") Integer year,
+                        @Param("month") Integer month,
+                        @Param("amount") Integer amount);
 }
