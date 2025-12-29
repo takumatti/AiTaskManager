@@ -12,7 +12,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import com.aitaskmanager.repository.generator.SubscriptionPlansMapper;
+import com.aitaskmanager.repository.customMapper.UserMapper;
 import com.aitaskmanager.repository.model.SubscriptionPlans;
+import com.aitaskmanager.repository.model.Users;
 
 import java.util.Optional;
 
@@ -28,6 +30,9 @@ public class StripeBillingService {
 
     @Autowired
     private SubscriptionPlansMapper subscriptionPlansMapper;
+
+    @Autowired
+    private UserMapper userMapper;
 
     @Value("${stripe.successUrl}")
     private String successUrl;
@@ -59,6 +64,37 @@ public class StripeBillingService {
     public String createCheckoutSessionForPlan(int planId, String userId) {
         log.info("[Stripe] createCheckoutSessionForPlan start: planId={} userId={}", planId, userId);
         Stripe.apiKey = stripeApiKey;
+
+        // ダウングレード禁止のバリデーション（無料プランは例外として許可）
+        SubscriptionPlans newPlan = subscriptionPlansMapper.selectByPrimaryKey(planId);
+        if (newPlan == null) {
+            throw new IllegalArgumentException("指定のプランが存在しません: planId=" + planId);
+        }
+        Integer newQuota = newPlan.getAiQuota();
+        boolean isFreeTarget = (newQuota != null && newQuota.intValue() == 0);
+
+        Users user = userMapper.selectByUserId(userId);
+        Integer currentPlanId = (user != null) ? user.getPlanId() : null;
+        Integer currentQuota = null;
+        if (currentPlanId != null) {
+            SubscriptionPlans currentPlan = subscriptionPlansMapper.selectByPrimaryKey(currentPlanId);
+            currentQuota = (currentPlan != null) ? currentPlan.getAiQuota() : null; // null=無制限
+        }
+
+        // 比較のための正規化: null(無制限)はInteger.MAX_VALUE、未設定は-1（比較不能=常にアップ扱い）
+        int newComparable = (newQuota == null) ? Integer.MAX_VALUE : newQuota.intValue();
+        int currentComparable;
+        if (currentPlanId == null) {
+            currentComparable = -1; // 現在プランなし => 何に変えてもダウングレードではない
+        } else {
+            currentComparable = (currentQuota == null) ? Integer.MAX_VALUE : currentQuota.intValue();
+        }
+
+        boolean isDowngrade = (currentComparable >= 0) && (newComparable < currentComparable);
+        if (isDowngrade && !isFreeTarget) {
+            log.warn("[Stripe] downgrade blocked: userId={} currentQuota={} newQuota={}", userId, currentQuota, newQuota);
+            throw new IllegalArgumentException("downgrade-not-allowed");
+        }
 
         String priceId = findStripePriceIdByPlanId(planId)
                 .orElseThrow(() -> new IllegalArgumentException("対応するStripe Price IDが見つかりません (planId=" + planId + ")"));

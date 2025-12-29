@@ -10,6 +10,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.ZoneId;
 
 /**
  * Stripeのウェブフックイベントに関連するビジネスロジックを提供するサービス
@@ -66,6 +68,16 @@ public class StripeWebhookService {
         }
         System.out.println("[StripeWebhookService] inserting subscription userSid=" + userSid + ", planSid=" + planSid + ", isUnlimited=" + isUnlimited + ", expiresAt=" + expiresAt);
         subscriptionsMapper.insertSubscription(userSid, planSid, expiresAt);
+        
+        // 当月のai_usage行を初期化（存在しない場合は作成）。ボーナス0でUPSERTを使って行を用意。
+        LocalDate now = LocalDate.now(ZoneId.of("Asia/Tokyo"));
+        try {
+            customAiUsageMapper.upsertAddBonus(userSid, now.getYear(), now.getMonthValue(), 0);
+            System.out.println("[StripeWebhookService] ai_usage ensured for userSid=" + userSid + " year=" + now.getYear() + " month=" + now.getMonthValue());
+        } catch (Exception e) {
+            // ai_usageの初期化失敗は致命ではないためログのみ
+            System.err.println("[StripeWebhookService] ai_usage ensure failed: " + e.getMessage());
+        }
     }
 
     /**

@@ -482,12 +482,25 @@ export default function Dashboard() {
                       if (!url) throw new Error("sessionUrl missing");
                       window.location.href = url;
                     } catch (e) {
-                      console.error("Checkout開始に失敗しました", e);
-                      setPlanMessage({ type: "error", text: "Checkoutの開始に失敗しました" });
+                      // サーバーからのエラー内容を抽出
+                      const err = e as { response?: { data?: { message?: string } } ; message?: string };
+                      const code = err?.response?.data?.message || err?.message || "unknown-error";
+                      let msg = "Checkoutの開始に失敗しました";
+                      if (code === "downgrade-not-allowed") {
+                        msg = "ダウングレードはできません。回数追加（買い切り）をご利用ください。";
+                      } else if (typeof code === 'string' && code.trim() && code !== 'unknown-error') {
+                        // サーバーのmessageがあればそのまま表示
+                        msg = code;
+                      }
+                      console.error("Checkout開始に失敗しました:", code, e);
+                      setPlanMessage({ type: "error", text: msg });
                       setTimeout(() => setPlanMessage(null), 4000);
                     }
                   }}
                 >購入画面へ</button>
+                <div className="text-muted mt-2" style={{ fontSize: '0.85rem' }}>
+                  ※ 本プランの購入はサブスクリプションではなく、1か月毎の買い切り（都度購入）です。
+                </div>
               </div>
             </div>
           </div>
@@ -543,6 +556,7 @@ export default function Dashboard() {
                   <div className="p-2 border rounded">
                     <div className="fw-bold">プランを変更</div>
                     <div className="text-muted" style={{ fontSize: '0.9rem' }}>月間のAI利用上限を変更します</div>
+                    <div className="text-muted" style={{ fontSize: '0.85rem' }}>※ プランはサブスクリプションではなく買い切りです。回数の追加は「買い切り」のクレジットで対応できます。</div>
                     <div className="mt-2">
                       <button className="btn btn-outline-primary" onClick={() => { setShowLimitModal(false); setShowPlanModal(true); }}>プラン変更を開く</button>
                     </div>
