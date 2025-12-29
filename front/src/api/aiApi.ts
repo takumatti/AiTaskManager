@@ -3,6 +3,8 @@ import apiClient from './apiClient';
 export type AiQuotaStatus = {
   planId: number | null;
   planName: string;
+  displayPlanId?: number | null;
+  displayPlanName?: string;
   unlimited: boolean;
   remaining: number | null;
   resetDate?: string; // YYYY-MM-DD
@@ -32,11 +34,6 @@ export async function fetchPlans(): Promise<SubscriptionPlan[]> {
 export async function changePlan(planId: number): Promise<void> {
   await apiClient.post('/api/subscriptions/change', { planId });
 }
-
-// --- クレジットパック（回数追加） ---
-export const CREDIT_PRICE_5 = 'price_credit_5';
-export const CREDIT_PRICE_10 = 'price_credit_10';
-export const CREDIT_PRICE_30 = 'price_credit_30';
 
 export async function createCreditCheckout(priceId: string): Promise<{ sessionUrl: string }> {
   const res = await apiClient.post('/api/billing/checkout-credit', null, {

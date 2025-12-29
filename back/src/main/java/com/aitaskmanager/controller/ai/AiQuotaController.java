@@ -79,11 +79,22 @@ public class AiQuotaController {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error("user-not-found"));
             }
 
-            // plan_idはトークンにあれば優先、無ければDBの値
+            // 表示/計算用のプランは、現在アクティブな契約（subscriptions）のplan_sidを最優先で使用する。
+            // アクティブ契約がない場合は、ユーザテーブルのplan_idを使用。
             String planResolve = null;
-            Integer planId = (planIdFromToken != null) ? planIdFromToken : user.getPlanId();
-            if (planIdFromToken != null) planResolve = "token"; else if (user.getPlanId() != null) planResolve = "db";
-            SubscriptionPlans plan = planId != null ? subscriptionPlansMapper.selectByPrimaryKey(planId) : null;
+            Integer planId = null;
+            if (user.getUserSid() != null) {
+                Integer activePlanSid = subscriptionsCustomMapper.selectActivePlanSid(user.getUserSid());
+                if (activePlanSid != null) {
+                    planId = activePlanSid;
+                    planResolve = "active-subscription";
+                }
+            }
+            if (planId == null) {
+                planId = (planIdFromToken != null) ? planIdFromToken : user.getPlanId();
+                if (planIdFromToken != null) planResolve = "token"; else if (user.getPlanId() != null) planResolve = "db";
+            }
+            SubscriptionPlans plan = (planId != null) ? subscriptionPlansMapper.selectByPrimaryKey(planId) : null;
             if (plan == null) {
                 // フォールバック: 利用可能なプラン一覧からデフォルト（先頭）を選択
                 try {
@@ -135,7 +146,7 @@ public class AiQuotaController {
 
             // レスポンス作成
             Map<String, Object> body = new HashMap<>();
-            body.put("planName", plan != null ? plan.getName() : "");
+            body.put("planName", plan != null ? plan.getName() : ""); // 計算に用いたプラン（active優先）
             body.put("planId", plan != null ? plan.getSubscriptionPlanSid() : null);
             body.put("planResolve", planResolve);
             boolean unlimited = (aiQuota == null);
@@ -145,6 +156,12 @@ public class AiQuotaController {
             body.put("aiConfigured", aiConfigured);
             body.put("resetDate", resetDate.toString()); // ISO形式 YYYY-MM-DD
             body.put("daysUntilReset", Long.valueOf(daysUntilReset));
+            // 画面表示用（ユーザの希望プラン: users.plan_id）。今月はactive契約を計算に使いつつ、
+            // 表示は次回から反映予定のプラン名を出すためのフィールド。
+            Integer displayPlanId = user.getPlanId();
+            SubscriptionPlans displayPlan = (displayPlanId != null) ? subscriptionPlansMapper.selectByPrimaryKey(displayPlanId) : null;
+            body.put("displayPlanName", displayPlan != null ? displayPlan.getName() : (plan != null ? plan.getName() : ""));
+            body.put("displayPlanId", displayPlanId != null ? displayPlanId : (plan != null ? plan.getSubscriptionPlanSid() : null));
             if (!aiConfigured) {
                 body.put("message", "AI連携（OpenAI APIキー）が未設定です");
             }

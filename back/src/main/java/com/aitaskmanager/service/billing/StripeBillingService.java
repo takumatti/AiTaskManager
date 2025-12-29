@@ -12,6 +12,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import com.aitaskmanager.repository.generator.SubscriptionPlansMapper;
+import com.aitaskmanager.repository.customMapper.CreditPacksCustomMapper;
+import com.aitaskmanager.repository.model.CreditPacks;
 import com.aitaskmanager.repository.customMapper.UserMapper;
 import com.aitaskmanager.repository.model.SubscriptionPlans;
 import com.aitaskmanager.repository.model.Users;
@@ -33,6 +35,9 @@ public class StripeBillingService {
 
     @Autowired
     private UserMapper userMapper;
+
+    @Autowired
+    private CreditPacksCustomMapper creditPacksCustomMapper;
 
     @Value("${stripe.successUrl}")
     private String successUrl;
@@ -183,9 +188,12 @@ public class StripeBillingService {
         log.info("[Stripe] createCheckoutSessionForCredit start: priceId={} userId={}", priceId, userId);
         Stripe.apiKey = stripeApiKey;
 
-        // Price ID -> クレジット数のマッピング（暫定）。本番では設定やDBで管理することを推奨
-        int creditAmount = mapCreditAmount(priceId)
-                .orElseThrow(() -> new IllegalArgumentException("対応するクレジットパックが見つかりません (priceId=" + priceId + ")"));
+        // Price ID -> クレジット数の解決（DBのcredit_packsから）
+        CreditPacks pack = creditPacksCustomMapper.selectByStripePriceId(priceId);
+        if (pack == null || pack.getEnabled() == null || !pack.getEnabled()) {
+            throw new IllegalArgumentException("対応する有効なクレジットパックが見つかりません (priceId=" + priceId + ")");
+        }
+        int creditAmount = pack.getAmount();
 
         if (successUrl == null || successUrl.isBlank()) {
             throw new IllegalStateException("stripe.successUrl が未設定です");
@@ -237,21 +245,4 @@ public class StripeBillingService {
         }
     }
 
-    /** 
-     * Price IDからクレジット数を解決する暫定マッピング 
-     * 
-     * @param priceId Stripe Price ID
-     * @return クレジット数のOptional
-     */
-    private Optional<Integer> mapCreditAmount(String priceId) {
-        // 仮のマッピング: 5/10/30回パック。実際のPrice IDが決まり次第、ここを置き換えるか設定/DB管理へ移行する
-        // 例: price_credit_5, price_credit_10, price_credit_30
-        if (priceId == null) return Optional.empty();
-        return switch (priceId) {
-            case "price_credit_5" -> Optional.of(5);
-            case "price_credit_10" -> Optional.of(10);
-            case "price_credit_30" -> Optional.of(30);
-            default -> Optional.empty();
-        };
-    }
 }

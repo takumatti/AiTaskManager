@@ -15,10 +15,8 @@ import {
   fetchPlans,
   type SubscriptionPlan,
   createCreditCheckout,
-  CREDIT_PRICE_5,
-  CREDIT_PRICE_10,
-  CREDIT_PRICE_30,
 } from "../api/aiApi";
+import { fetchCreditPacks, type CreditPack } from "../api/creditPackApi";
 import apiClient from "../api/apiClient";
 import "./Dashboard.css";
 import "./DashboardFilters.css";
@@ -86,6 +84,28 @@ export default function Dashboard() {
   const [showDocsModal, setShowDocsModal] = useState(false);
   const [creditBuying, setCreditBuying] = useState(false);
   const [showLimitModal, setShowLimitModal] = useState(false);
+  const [creditPacks, setCreditPacks] = useState<CreditPack[]>([]);
+  const [creditPacksLoading, setCreditPacksLoading] = useState(false);
+  const [creditPacksError, setCreditPacksError] = useState<string | null>(null);
+
+  // AIクオータ取得
+  const reloadQuota = async () => {
+    setQuotaLoading(true);
+    try {
+      const status = await fetchAiQuotaStatus();
+      setAiQuota(status);
+      setAiError(null);
+    } catch (e: unknown) {
+      const respStatus = (e as { response?: { status?: number } })?.response?.status;
+      if (respStatus === 503) {
+        setAiError("AI連携が未設定です。管理者に連絡するか、OPENAI_API_KEY を設定してください。");
+      } else {
+        setAiError("AI利用状況の取得に失敗しました。");
+      }
+    } finally {
+      setQuotaLoading(false);
+    }
+  };
 
   // タスク一覧取得
   useEffect(() => {
@@ -111,25 +131,32 @@ export default function Dashboard() {
     }
   }, []);
 
-  // AIクオータ取得
-  const reloadQuota = async () => {
-    setQuotaLoading(true);
-    try {
-      const status = await fetchAiQuotaStatus();
-      setAiQuota(status);
-      setAiError(null);
-    } catch (e: unknown) {
-      const respStatus = (e as { response?: { status?: number } })?.response?.status;
-      if (respStatus === 503) {
-        setAiError("AI連携が未設定です。管理者に連絡するか、OPENAI_API_KEY を設定してください。");
-      } else {
-        setAiError("AI利用状況の取得に失敗しました。");
-      }
-    } finally {
-      setQuotaLoading(false);
+  // 成功メッセージの自動消去（5秒）。他のトリガーでsuccessがセットされた場合にも対応。
+  useEffect(() => {
+    if (planMessage?.type === "success") {
+      const timer = setTimeout(() => setPlanMessage(null), 5000);
+      return () => clearTimeout(timer);
     }
-  };
+  }, [planMessage]);
   useEffect(() => { void reloadQuota(); }, []);
+
+  // クレジットパック一覧取得
+  useEffect(() => {
+    const loadPacks = async () => {
+      try {
+        setCreditPacksLoading(true);
+        const packs = await fetchCreditPacks();
+        setCreditPacks(packs);
+        setCreditPacksError(null);
+      } catch (e) {
+        console.error(e);
+        setCreditPacksError("クレジットパックの取得に失敗しました");
+      } finally {
+        setCreditPacksLoading(false);
+      }
+    };
+    void loadPacks();
+  }, []);
 
   // プラン一覧取得（モーダル表示時）
   useEffect(() => {
@@ -139,7 +166,7 @@ export default function Dashboard() {
         setPlanLoading(true);
         const resp = await fetchPlans();
         setPlans(resp);
-        const currentId = aiQuota?.planId ?? null;
+        const currentId = aiQuota?.displayPlanId ?? null;
         setSelectedPlanId(currentId);
         setPlanError(null);
       } catch (e: unknown) {
@@ -152,7 +179,7 @@ export default function Dashboard() {
       }
     };
     void loadPlans();
-  }, [showPlanModal, aiQuota?.planId]);
+  }, [showPlanModal, aiQuota?.planId, aiQuota?.displayPlanId]);
 
   // フィルタ適用
   const filteredTasks = useMemo(() => {
@@ -326,34 +353,81 @@ export default function Dashboard() {
             </div>
           )}
 
-          <div className="dashboard-header-sub">
-            <div className="dashboard-view-toggle-right">
-              <button className="btn btn-primary view-toggle-btn" onClick={() => setView(view === "list" ? "calendar" : "list")}>
-                {view === "list" ? (<><div>カレンダー</div><div>表示</div></>) : (<><div>リスト</div><div>表示</div></>)}
+            <div className="dashboard-header-sub" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {/* 左端：表示切替ボタン */}
+              <div className="dashboard-view-toggle-left" style={{ flex: '0 0 auto' }}>
+              <button
+                className="btn btn-primary view-toggle-btn"
+                style={{ whiteSpace: 'nowrap', width: 120, minHeight: 36, textAlign: 'center' }}
+                onClick={() => setView(view === "list" ? "calendar" : "list")}
+              >
+                {view === "list" ? (
+                  (<><div>カレンダー</div><div>表示</div></>)
+                ) : (
+                  (<><div>リスト</div><div>表示</div></>)
+                )}
               </button>
             </div>
 
-            {/* AI利用制限 表示 + 変更ボタン（単一行） */}
-            <div className="quota-info" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'nowrap' }}>
-              {aiError ? (
-                <button className="btn btn-sm btn-outline-secondary" onClick={reloadQuota} disabled={quotaLoading}>
-                  {quotaLoading ? "再試行中..." : "再試行"}
-                </button>
-              ) : (
-                <span style={{ whiteSpace: 'nowrap' }}>
-                  {aiQuota ? (
-                    aiQuota.unlimited ? (
-                      <>AI利用制限 無制限（{aiQuota.planName}）{aiQuota.resetDate ? `｜リセット: ${aiQuota.resetDate}` : ''}</>
+              {/* 中央：AI利用制限＋リセット情報（中央寄せ） */}
+              <div className="quota-info" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, maxWidth: '100%', flex: '1 1 auto' }}>
+                <div style={{ width: '100%', textAlign: 'center' }}>
+                {aiError ? (
+                  <button className="btn btn-sm btn-outline-secondary" onClick={reloadQuota} disabled={quotaLoading}>
+                    {quotaLoading ? "再試行中..." : "再試行"}
+                  </button>
+                ) : (
+                  <div style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                    {aiQuota ? (
+                      aiQuota.unlimited ? (
+                        <>
+                            <div>
+                              <span className="fw-bold">AI利用制限</span>
+                              <span className="ms-2">無制限</span>
+                              <span className="ms-2 text-muted">（{aiQuota.displayPlanName ?? aiQuota.planName}）</span>
+                            </div>
+                            {aiQuota.resetDate && (
+                              <div>
+                                <span className="text-muted">リセット:</span> <span className="fw-semibold">{aiQuota.resetDate}</span>
+                                {typeof aiQuota.daysUntilReset === 'number' && (
+                                  <span className="ms-1 text-muted">（あと{aiQuota.daysUntilReset}日）</span>
+                                )}
+                              </div>
+                            )}
+                        </>
+                      ) : (
+                        <>
+                            <div>
+                              <span className="fw-bold">AI利用制限</span>
+                              <span className="ms-2">残り <span className="fw-semibold">{aiQuota.remaining ?? 0}</span> 回</span>
+                              <span className="ms-2 text-muted">（{aiQuota.displayPlanName ?? aiQuota.planName}）</span>
+                            </div>
+                            {aiQuota.resetDate && (
+                              <div>
+                                <span className="text-muted">リセット:</span> <span className="fw-semibold">{aiQuota.resetDate}</span>
+                                {typeof aiQuota.daysUntilReset === 'number' && (
+                                  <span className="ms-1 text-muted">（あと{aiQuota.daysUntilReset}日）</span>
+                                )}
+                              </div>
+                            )}
+                        </>
+                      )
                     ) : (
-                      <>AI利用制限 残り {aiQuota.remaining ?? 0} 回（{aiQuota.planName}）{aiQuota.resetDate ? `｜リセット: ${aiQuota.resetDate}（あと${aiQuota.daysUntilReset ?? ''}日）` : ''}</>
-                    )
-                  ) : (
-                    <>AI利用制限 残り 0 回（取得中）</>
-                  )}
-                </span>
-              )}
-              <button className="btn btn-sm btn-outline-primary" onClick={() => setShowLimitModal(true)} style={{ lineHeight: 1.2 }}>
-                <span style={{ display: 'inline-block', textAlign: 'center' }}>AI利用制限を<br />変更</span>
+                      <>
+                        <span className="fw-bold">AI利用制限</span>
+                        <span className="ms-2">残り 0 回</span>
+                        <span className="ms-2 text-muted">（取得中）</span>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 右端：AI利用制限を変更ボタン */}
+            <div className="dashboard-limit-change-right" style={{ flex: '0 0 auto' }}>
+              <button className="btn btn-sm btn-outline-primary" style={{ whiteSpace: 'nowrap' }} onClick={() => setShowLimitModal(true)}>
+                AI利用制限を変更
               </button>
             </div>
           </div>
@@ -443,58 +517,80 @@ export default function Dashboard() {
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">プランを選択</h5>
-                <button type="button" className="btn-close" onClick={() => { setShowPlanModal(false); setSelectedPlanId(null); }}></button>
+                <button type="button" className="btn-close" onClick={() => { setShowPlanModal(false); setSelectedPlanId(null); setPlanError(null); }}></button>
               </div>
               <div className="modal-body">
-                {planLoading ? (
-                  <div>読み込み中...</div>
-                ) : planError ? (
-                  <div className="text-danger">{planError}</div>
-                ) : (
-                  <div>
-                    {/* 既存のプラン一覧を簡易表示（選択可能） */}
-                    <div className="vstack gap-2">
-                      {(plans || []).map((p) => (
-                        <label key={p.id} className="d-flex align-items-center gap-2">
-                          <input type="radio" name="plan" checked={selectedPlanId === p.id} onChange={() => setSelectedPlanId(p.id)} />
-                          <span>
-                            {p.description ? (
-                              <>
-                                {p.name}（{p.description}）
-                              </>
-                            ) : (
-                              p.name
-                            )}
-                          </span>
-                        </label>
-                      ))}
-                    </div>
+                {planLoading && (<div>読み込み中...</div>)}
+                {planError && (<div className="alert alert-warning py-2 mb-2">{planError}</div>)}
+                <div>
+                  {/* 既存のプラン一覧を簡易表示（選択可能） */}
+                  <div className="vstack gap-2">
+                    {(plans || []).map((p) => (
+                      <label key={p.id} className="d-flex align-items-center gap-2">
+                        <input type="radio" name="plan" checked={selectedPlanId === p.id} onChange={() => setSelectedPlanId(p.id)} />
+                        <span>
+                          {p.description ? (
+                            <>
+                              {p.name}（{p.description}）
+                            </>
+                          ) : (
+                            p.name
+                          )}
+                        </span>
+                      </label>
+                    ))}
                   </div>
-                )}
+                </div>
                 <button
                   className="btn btn-success mt-3"
                   disabled={!selectedPlanId}
                   onClick={async () => {
                     if (!selectedPlanId) return;
                     try {
+                      // 同一プラン選択時はエラーをモーダル内に表示し、処理を中断
+                      const currentPlanId = aiQuota?.displayPlanId ?? null; // ユーザーに表示されている現在のプラン（即時Free反映などを考慮）
+                      if (currentPlanId != null && selectedPlanId === currentPlanId) {
+                        setPlanError("現在のプランと同じです。回数追加（買い切り）をご利用いただくか、今よりも上位のプランを購入してください。");
+                        return;
+                      }
+                      if (selectedPlanId === 1) {
+                        // 無料プランはStripe遷移せず、即時更新
+                        await apiClient.post(`/api/billing/change-to-free`, null, { params: { planId: 1 } });
+                        setPlanMessage({ type: "success", text: "無料プランに変更しました。" });
+                        setShowPlanModal(false);
+                        void reloadQuota();
+                        return;
+                      }
+                      // 有料プランはStripe Checkoutへ（未消化の契約枠がある場合は確認ダイアログ）
+                      // 現状の型情報では契約枠のみの未消化数を直接取得できないため、近似として remaining を使用します（bonusは含まれる可能性あり）。
+                      const unconsumedApprox = Math.max(0, aiQuota?.remaining ?? 0);
+                      if (!aiQuota?.unlimited && unconsumedApprox > 0) {
+                        const proceed = window.confirm(
+                          `今月のアクティブ契約の回数をまだ ${unconsumedApprox} 回分使い切っていない可能性があります。\n有料プランを再購入しますか？\n（注：ボーナス回数は確認対象外です）`
+                        );
+                        if (!proceed) {
+                          return;
+                        }
+                      }
                       const resp = await apiClient.post(`/api/billing/checkout-session`, null, { params: { planId: selectedPlanId } });
                       const url = resp?.data?.sessionUrl;
                       if (!url) throw new Error("sessionUrl missing");
                       window.location.href = url;
                     } catch (e) {
-                      // サーバーからのエラー内容を抽出
+                      // サーバーからのエラー内容を抽出し、モーダル内に表示
                       const err = e as { response?: { data?: { message?: string } } ; message?: string };
                       const code = err?.response?.data?.message || err?.message || "unknown-error";
                       let msg = "Checkoutの開始に失敗しました";
                       if (code === "downgrade-not-allowed") {
-                        msg = "ダウングレードはできません。回数追加（買い切り）をご利用ください。";
+                        msg = "ダウングレードはできません。回数追加（買い切り）をご利用いただくか、今よりも上位のプランを購入してください。";
+                      } else if (code === "only-free-allowed") {
+                        msg = "無料プラン以外はこの操作では変更できません。";
                       } else if (typeof code === 'string' && code.trim() && code !== 'unknown-error') {
                         // サーバーのmessageがあればそのまま表示
                         msg = code;
                       }
                       console.error("Checkout開始に失敗しました:", code, e);
-                      setPlanMessage({ type: "error", text: msg });
-                      setTimeout(() => setPlanMessage(null), 4000);
+                      setPlanError(msg);
                     }
                   }}
                 >購入画面へ</button>
@@ -558,28 +654,29 @@ export default function Dashboard() {
                     <div className="text-muted" style={{ fontSize: '0.9rem' }}>月間のAI利用上限を変更します</div>
                     <div className="text-muted" style={{ fontSize: '0.85rem' }}>※ プランはサブスクリプションではなく買い切りです。回数の追加は「買い切り」のクレジットで対応できます。</div>
                     <div className="mt-2">
-                      <button className="btn btn-outline-primary" onClick={() => { setShowLimitModal(false); setShowPlanModal(true); }}>プラン変更を開く</button>
+                      <button className="btn btn-outline-primary" onClick={() => { setPlanError(null); setShowLimitModal(false); setShowPlanModal(true); }}>プラン変更を開く</button>
                     </div>
                   </div>
                   <div className="p-2 border rounded">
                     <div className="fw-bold">回数を追加（買い切り）</div>
                     <div className="text-muted" style={{ fontSize: '0.9rem' }}>今月の残り回数にクレジットを加算します</div>
-                    <div className="mt-2 d-flex gap-2">
-                      <button className="btn btn-outline-success" disabled={creditBuying} onClick={async () => {
-                        try { setCreditBuying(true); const { sessionUrl } = await createCreditCheckout(CREDIT_PRICE_5); window.location.href = sessionUrl; }
-                        catch (e: unknown) { const errMsg = (e as { response?: { data?: { message?: string } } ; message?: string })?.response?.data?.message ?? (e as { message?: string }).message ?? 'クレジット購入に失敗しました'; setAiError(errMsg); }
-                        finally { setCreditBuying(false); }
-                      }}>+5回</button>
-                      <button className="btn btn-outline-success" disabled={creditBuying} onClick={async () => {
-                        try { setCreditBuying(true); const { sessionUrl } = await createCreditCheckout(CREDIT_PRICE_10); window.location.href = sessionUrl; }
-                        catch (e: unknown) { const errMsg = (e as { response?: { data?: { message?: string } } ; message?: string })?.response?.data?.message ?? (e as { message?: string }).message ?? 'クレジット購入に失敗しました'; setAiError(errMsg); }
-                        finally { setCreditBuying(false); }
-                      }}>+10回</button>
-                      <button className="btn btn-outline-success" disabled={creditBuying} onClick={async () => {
-                        try { setCreditBuying(true); const { sessionUrl } = await createCreditCheckout(CREDIT_PRICE_30); window.location.href = sessionUrl; }
-                        catch (e: unknown) { const errMsg = (e as { response?: { data?: { message?: string } } ; message?: string })?.response?.data?.message ?? (e as { message?: string }).message ?? 'クレジット購入に失敗しました'; setAiError(errMsg); }
-                        finally { setCreditBuying(false); }
-                      }}>+30回</button>
+                    <div className="mt-2 d-flex flex-wrap gap-2">
+                      {creditPacksError && (
+                        <div className="alert alert-warning w-100 py-2">{creditPacksError}</div>
+                      )}
+                      {creditPacksLoading && (
+                        <div className="text-muted">読み込み中...</div>
+                      )}
+                      {!creditPacksLoading && creditPacks.map((p) => (
+                        <button key={p.creditPackSid} className="btn btn-outline-success" disabled={creditBuying}
+                          onClick={async () => {
+                            try { setCreditBuying(true); const { sessionUrl } = await createCreditCheckout(p.stripePriceId); window.location.href = sessionUrl; }
+                            catch (e: unknown) { const errMsg = (e as { response?: { data?: { message?: string } } ; message?: string })?.response?.data?.message ?? (e as { message?: string }).message ?? 'クレジット購入に失敗しました'; setAiError(errMsg); }
+                            finally { setCreditBuying(false); }
+                          }}>
+                          +{p.amount}回
+                        </button>
+                      ))}
                     </div>
                   </div>
                 </div>

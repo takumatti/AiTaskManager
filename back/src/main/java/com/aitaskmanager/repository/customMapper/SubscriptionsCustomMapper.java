@@ -37,4 +37,11 @@ public interface SubscriptionsCustomMapper {
      * @return 最新の started_at（存在しない場合はNULL）
      */
     java.sql.Timestamp selectLatestStartedAt(@Param("userSid") long userSid);
+
+    /**
+     * 現在アクティブなサブスクリプションのplan_sidを取得する
+     * @param userSid ユーザーSID
+     * @return plan_sid（存在しない場合はNULL）
+     */
+    Integer selectActivePlanSid(@Param("userSid") long userSid);
 }

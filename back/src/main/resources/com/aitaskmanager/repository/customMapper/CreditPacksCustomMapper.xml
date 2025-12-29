@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aitaskmanager.repository.customMapper.CreditPacksCustomMapper">
+  <resultMap id="CreditPacksResultMap" type="com.aitaskmanager.repository.model.CreditPacks">
+    <id column="credit_pack_sid" property="creditPackSid" />
+    <result column="code" property="code" />
+    <result column="name" property="name" />
+    <result column="description" property="description" />
+    <result column="amount" property="amount" />
+    <result column="display_price" property="displayPrice" />
+    <result column="stripe_price_id" property="stripePriceId" />
+    <result column="enabled" property="enabled" />
+    <result column="sort_order" property="sortOrder" />
+    <result column="created_at" property="createdAt" />
+  </resultMap>
+  <select id="selectByStripePriceId" parameterType="string" resultMap="CreditPacksResultMap">
+    select credit_pack_sid, code, name, description, amount, display_price, stripe_price_id, enabled, sort_order, created_at
+    from credit_packs
+    where stripe_price_id = #{stripePriceId}
+    limit 1
+  </select>
+  <select id="selectEnabledOrderBySort" resultMap="CreditPacksResultMap">
+    select credit_pack_sid, code, name, description, amount, display_price, stripe_price_id, enabled, sort_order, created_at
+    from credit_packs
+    where enabled = true
+    order by sort_order asc, credit_pack_sid asc
+  </select>
+</mapper>

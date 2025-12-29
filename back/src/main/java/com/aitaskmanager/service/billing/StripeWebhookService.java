@@ -2,6 +2,7 @@ package com.aitaskmanager.service.billing;
 
 import com.aitaskmanager.repository.customMapper.PaymentsCustomMapper;
 import com.aitaskmanager.repository.customMapper.SubscriptionsCustomMapper;
+import com.aitaskmanager.repository.customMapper.UserMapper;
 import com.aitaskmanager.repository.customMapper.CustomAiUsageMapper;
 import com.aitaskmanager.repository.generator.SubscriptionPlansMapper;
 import com.stripe.model.checkout.Session;
@@ -30,6 +31,9 @@ public class StripeWebhookService {
 
     @Autowired
     private CustomAiUsageMapper customAiUsageMapper;
+    
+    @Autowired
+    private UserMapper userMapper;
 
     /**
      * チェックアウト完了イベントを永続化する
@@ -68,6 +72,16 @@ public class StripeWebhookService {
         }
         System.out.println("[StripeWebhookService] inserting subscription userSid=" + userSid + ", planSid=" + planSid + ", isUnlimited=" + isUnlimited + ", expiresAt=" + expiresAt);
         subscriptionsMapper.insertSubscription(userSid, planSid, expiresAt);
+        
+        // ユーザテーブルの plan_id を更新
+        try {
+            String userIdFromMetadata = session != null && session.getMetadata() != null ? session.getMetadata().get("userId") : null;
+            if (userIdFromMetadata != null && !userIdFromMetadata.isBlank()) {
+                userMapper.updatePlanId(userIdFromMetadata, planSid);
+            }
+        } catch (Exception ignore) {
+            // 失敗時はログのみ（将来的にSIDベース更新メソッドに切替）
+        }
         
         // 当月のai_usage行を初期化（存在しない場合は作成）。ボーナス0でUPSERTを使って行を用意。
         LocalDate now = LocalDate.now(ZoneId.of("Asia/Tokyo"));
