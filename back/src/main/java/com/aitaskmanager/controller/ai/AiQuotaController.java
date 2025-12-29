@@ -1,6 +1,8 @@
 package com.aitaskmanager.controller.ai;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.beans.factory.annotation.Value;
 
 import com.aitaskmanager.repository.customMapper.CustomAiUsageMapper;
+import com.aitaskmanager.repository.customMapper.SubscriptionsCustomMapper;
 import com.aitaskmanager.security.AuthUtils;
 import com.aitaskmanager.repository.generator.SubscriptionPlansMapper;
 import com.aitaskmanager.repository.customMapper.UserMapper;
@@ -42,6 +45,9 @@ public class AiQuotaController {
 
     @Autowired
     private CustomAiUsageMapper customAiUsageMapper;
+
+    @Autowired
+    private SubscriptionsCustomMapper subscriptionsCustomMapper;
 
     @Value("${openai.apiKey:}")
     private String openaiApiKey;
@@ -104,6 +110,29 @@ public class AiQuotaController {
                 Integer bonusCount = (uid != null) ? customAiUsageMapper.selectBonusCount(uid, now.getYear(), now.getMonthValue()) : 0;
                 int bonus = (bonusCount != null) ? bonusCount.intValue() : 0;
 
+            // リセット日: 契約開始日の翌月同日（存在しない場合は月末にクランプ）。契約が無い場合は翌月1日。
+            LocalDate resetDate;
+            long daysUntilReset;
+            try {
+                Long userSid = user.getUserSid();
+                java.sql.Timestamp startedAtTs = (userSid != null) ? subscriptionsCustomMapper.selectLatestStartedAt(userSid) : null;
+                if (startedAtTs != null) {
+                    LocalDate startedDate = startedAtTs.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+                    int dom = startedDate.getDayOfMonth();
+                    LocalDate cand = startedDate.plusMonths(1);
+                    int endOfMonth = cand.lengthOfMonth();
+                    int clampedDay = Math.min(dom, endOfMonth);
+                    resetDate = LocalDate.of(cand.getYear(), cand.getMonth(), clampedDay);
+                } else {
+                    resetDate = now.withDayOfMonth(1).plusMonths(1);
+                }
+                daysUntilReset = Math.max(0, ChronoUnit.DAYS.between(now, resetDate));
+            } catch (Exception ex0) {
+                // フォールバック（安全策）
+                resetDate = now.withDayOfMonth(1).plusMonths(1);
+                daysUntilReset = Math.max(0, ChronoUnit.DAYS.between(now, resetDate));
+            }
+
             // レスポンス作成
             Map<String, Object> body = new HashMap<>();
             body.put("planName", plan != null ? plan.getName() : "");
@@ -114,6 +143,8 @@ public class AiQuotaController {
             Integer remaining = unlimited ? null : Integer.valueOf(Math.max(0, aiQuota + bonus - used));
             body.put("remaining", remaining);
             body.put("aiConfigured", aiConfigured);
+            body.put("resetDate", resetDate.toString()); // ISO形式 YYYY-MM-DD
+            body.put("daysUntilReset", Long.valueOf(daysUntilReset));
             if (!aiConfigured) {
                 body.put("message", "AI連携（OpenAI APIキー）が未設定です");
             }

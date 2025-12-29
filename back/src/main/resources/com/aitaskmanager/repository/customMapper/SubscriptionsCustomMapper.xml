@@ -13,4 +13,13 @@
       AND status = 'ACTIVE'
       AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
   </select>
+  <select id="selectLatestStartedAt" resultType="java.sql.Timestamp">
+    SELECT started_at
+    FROM subscriptions
+    WHERE user_sid = #{userSid}
+      AND status = 'ACTIVE'
+      AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+    ORDER BY started_at DESC
+    LIMIT 1
+  </select>
 </mapper>

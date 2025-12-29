@@ -343,9 +343,9 @@ export default function Dashboard() {
                 <span style={{ whiteSpace: 'nowrap' }}>
                   {aiQuota ? (
                     aiQuota.unlimited ? (
-                      <>AI利用制限 無制限（{aiQuota.planName}）</>
+                      <>AI利用制限 無制限（{aiQuota.planName}）{aiQuota.resetDate ? `｜リセット: ${aiQuota.resetDate}` : ''}</>
                     ) : (
-                      <>AI利用制限 残り {aiQuota.remaining ?? 0} 回（{aiQuota.planName}）</>
+                      <>AI利用制限 残り {aiQuota.remaining ?? 0} 回（{aiQuota.planName}）{aiQuota.resetDate ? `｜リセット: ${aiQuota.resetDate}（あと${aiQuota.daysUntilReset ?? ''}日）` : ''}</>
                     )
                   ) : (
                     <>AI利用制限 残り 0 回（取得中）</>

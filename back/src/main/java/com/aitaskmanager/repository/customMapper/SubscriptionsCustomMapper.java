@@ -29,4 +29,12 @@ public interface SubscriptionsCustomMapper {
      * @return 存在する場合は1、存在しない場合は0
      */
     int hasActive(@Param("userSid") int userSid, @Param("planSid") int planSid);
+
+    /**
+     * ユーザーの最新のアクティブ契約の開始日を取得する
+     *
+     * @param userSid ユーザーSID
+     * @return 最新の started_at（存在しない場合はNULL）
+     */
+    java.sql.Timestamp selectLatestStartedAt(@Param("userSid") long userSid);
 }

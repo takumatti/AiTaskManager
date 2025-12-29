@@ -5,6 +5,8 @@ export type AiQuotaStatus = {
   planName: string;
   unlimited: boolean;
   remaining: number | null;
+  resetDate?: string; // YYYY-MM-DD
+  daysUntilReset?: number; // 残日数
 };
 // AIクォータステータス取得API
 export async function fetchAiQuotaStatus(): Promise<AiQuotaStatus> {
