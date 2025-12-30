@@ -479,6 +479,13 @@ export default function Dashboard() {
               tasks={filteredTasks}
               onEdit={handleEdit}
               onDelete={handleDelete}
+              onCreateChild={(parentId: number) => {
+                // 子追加: 親IDをセットして新規作成フォームを開く
+                setEditingTask(null);
+                setParentIdForCreate(parentId);
+                setInitialDueDateForCreate(undefined);
+                setShowForm(true);
+              }}
             />
             <TaskLegend />
           </>
