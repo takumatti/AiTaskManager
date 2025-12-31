@@ -139,7 +139,6 @@ public class TaskController {
         return taskService.redecomposeTask(userSid, id, request);
     }
 
-
     /**
      * タスクを削除するエンドポイント
      * 

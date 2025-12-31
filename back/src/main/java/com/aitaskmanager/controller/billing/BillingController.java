@@ -2,6 +2,10 @@ package com.aitaskmanager.controller.billing;
 
 import com.aitaskmanager.service.billing.StripeBillingService;
 import com.aitaskmanager.repository.customMapper.UserMapper;
+import com.aitaskmanager.repository.customMapper.SubscriptionsCustomMapper;
+import com.aitaskmanager.repository.customMapper.CustomAiUsageMapper;
+import com.aitaskmanager.repository.generator.SubscriptionPlansMapper;
+import com.aitaskmanager.repository.model.SubscriptionPlans;
 import com.aitaskmanager.security.AuthUtils;
 import org.springframework.http.ResponseEntity;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.security.core.Authentication;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 請求関連のコントローラクラス
@@ -28,6 +33,15 @@ public class BillingController {
 
     @Autowired
     private UserMapper userMapper;
+
+    @Autowired
+    private SubscriptionsCustomMapper subscriptionsCustomMapper;
+
+    @Autowired
+    private CustomAiUsageMapper customAiUsageMapper;
+
+    @Autowired
+    private SubscriptionPlansMapper subscriptionPlansMapper;
 
     /**
      * Stripe Checkoutセッションを作成するエンドポイント
@@ -102,6 +116,7 @@ public class BillingController {
      * @return レスポンスエンティティ
      */
     @PostMapping("/change-to-free")
+    @Transactional
     public ResponseEntity<?> changeToFree(@RequestParam("planId") int planId,
                                           Authentication authentication) {
         String userId = AuthUtils.getUserId(authentication);
@@ -112,9 +127,44 @@ public class BillingController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ErrorResponse("only-free-allowed"));
         }
         try {
+            // 1) ユーザーSID取得
+            var user = userMapper.selectByUserId(userId);
+            if (user == null || user.getUserSid() == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ErrorResponse("invalid-user"));
+            }
+            int userSid = user.getUserSid().intValue();
+
+            // 2) 現在のACTIVE契約があるか確認（最新）
+            Integer activePlanSid = subscriptionsCustomMapper.selectActivePlanSid(userSid);
+
+            // 3) 未消化分をボーナスへロール（Unlimitedは対象外）
+            if (activePlanSid != null) {
+                SubscriptionPlans plan = subscriptionPlansMapper.selectByPrimaryKey(activePlanSid);
+                Integer aiQuota = plan != null ? plan.getAiQuota() : null;
+                boolean isUnlimited = aiQuota == null || (aiQuota != null && aiQuota == 4);
+                if (!isUnlimited) {
+                    // 当月の使用/ボーナスを取得
+                    java.time.LocalDate today = java.time.LocalDate.now();
+                    int year = today.getYear();
+                    int month = today.getMonthValue();
+                    Integer used = customAiUsageMapper.selectUsedCount(userSid, year, month);
+                    int usedCount = used != null ? used : 0;
+                    int quota = aiQuota != null ? aiQuota : 0;
+                    int remainingPaid = Math.max(0, quota - usedCount);
+                    if (remainingPaid > 0) {
+                        customAiUsageMapper.upsertAddBonus(userSid, year, month, remainingPaid);
+                    }
+                }
+                // ACTIVE契約はCANCELLEDへ（当月以降は使わない）
+                subscriptionsCustomMapper.cancelActiveByUserSid(userSid);
+            }
+
+            // 4) users.plan_id を Free に更新
             userMapper.updatePlanId(userId, planId);
+
             return ResponseEntity.ok().body(new MessageResponse("free-changed"));
         } catch (Exception e) {
+            log.error("change-to-free failed", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ErrorResponse("failed-to-change-free"));
         }
     }

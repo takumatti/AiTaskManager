@@ -44,4 +44,11 @@ public interface SubscriptionsCustomMapper {
      * @return plan_sid（存在しない場合はNULL）
      */
     Integer selectActivePlanSid(@Param("userSid") long userSid);
+
+    /**
+     * ユーザーのACTIVEサブスクリプションをCANCELLEDへ更新する
+     * @param userSid ユーザーSID
+     * @return 更新件数
+     */
+    int cancelActiveByUserSid(@Param("userSid") int userSid);
 }

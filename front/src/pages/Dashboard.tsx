@@ -15,6 +15,9 @@ import {
   fetchPlans,
   type SubscriptionPlan,
   createCreditCheckout,
+  breakdownTask,
+  type TaskBreakdownRequest,
+  type TaskBreakdownResponse,
 } from "../api/aiApi";
 import { fetchCreditPacks, type CreditPack } from "../api/creditPackApi";
 import apiClient from "../api/apiClient";
@@ -31,6 +34,8 @@ const parseDateFlexibleToEpoch = (s?: string | null): number => {
   const ms = Date.parse(s);
   return Number.isNaN(ms) ? NaN : ms;
 };
+
+// 比較関数
 const compareEpochAsc = (a: number, b: number) => {
   const aNaN = Number.isNaN(a);
   const bNaN = Number.isNaN(b);
@@ -39,8 +44,11 @@ const compareEpochAsc = (a: number, b: number) => {
   if (bNaN) return -1;
   return a - b;
 };
+
+// 降順比較
 const compareEpochDesc = (a: number, b: number) => compareEpochAsc(b, a);
 
+// ダッシュボードコンポーネント
 export default function Dashboard() {
   const { logout, auth } = useAuth();
   const isAdmin = Array.isArray(auth?.roles) && auth!.roles!.includes("ADMIN");
@@ -87,6 +95,17 @@ export default function Dashboard() {
   const [creditPacks, setCreditPacks] = useState<CreditPack[]>([]);
   const [creditPacksLoading, setCreditPacksLoading] = useState(false);
   const [creditPacksError, setCreditPacksError] = useState<string | null>(null);
+  // AI細分化の結果表示用
+  const [breakdownWarning, setBreakdownWarning] = useState<string | null>(null);
+  const [breakdownPreview, setBreakdownPreview] = useState<Array<{ title: string; description?: string }>>([]);
+  const [showBreakdownModal, setShowBreakdownModal] = useState(false);
+  const [breakdownSelection, setBreakdownSelection] = useState<boolean[]>([]);
+  const [creatingChildren, setCreatingChildren] = useState(false);
+  const [lastCreatedTaskId, setLastCreatedTaskId] = useState<number | null>(null);
+  const [lastCreatedTask, setLastCreatedTask] = useState<Task | null>(null);
+  const allSelect = (checked: boolean) => {
+    setBreakdownSelection(prev => prev.map(() => checked));
+  };
 
   // AIクオータ取得
   const reloadQuota = async () => {
@@ -270,6 +289,7 @@ export default function Dashboard() {
     setEditingTask(task);
     setShowForm(true);
   };
+
   // タスク更新ハンドラ
   const handleUpdate = async (taskId: number, input: TaskInput) => {
     try {
@@ -283,19 +303,112 @@ export default function Dashboard() {
       console.error("更新エラー:", e);
     }
   };
+
   // タスク作成ハンドラ
   const handleCreated = async (input: TaskInput) => {
     try {
-      await createTask(input);
+      const created = await createTask(input);
       const tasks = await fetchTasks();
       setAllTasks(tasks);
       setDataVersion((v) => v + 1);
       setShowForm(false);
       setEditingTask(null);
+      setLastCreatedTaskId(created?.id ?? null);
+      setLastCreatedTask(created ?? null);
     } catch (error) {
       console.error("作成エラー:", error);
     }
+
+    // 新規作成後にAI細分化（チェックON時のみ）
+    // TaskCreateFormから渡されるフラグ（型: TaskInput に拡張プロパティとして存在）
+    if ((input as unknown as { ai_decompose?: boolean }).ai_decompose) {
+      try {
+        const prioForReq: "HIGH" | "NORMAL" | "LOW" | undefined =
+          input.priority === "LOW" ? "LOW" :
+          input.priority === "NORMAL" ? "NORMAL" :
+          input.priority === "HIGH" ? "HIGH" : undefined;
+        const req: TaskBreakdownRequest = {
+          title: input.title,
+          description: input.description ?? "",
+          dueDate: input.due_date,
+          priority: prioForReq,
+         };
+        const resp: TaskBreakdownResponse = await breakdownTask(req);
+        // 警告があればフォーム上部に表示（ダッシュボードヘッダー直下）
+        if (resp.warning && resp.warning.trim()) {
+          setBreakdownWarning(resp.warning);
+        }
+        // 子候補があればプレビューモーダルを開く／なければ警告を明示
+        if (Array.isArray(resp.children) && resp.children.length > 0) {
+          setBreakdownPreview(resp.children);
+          setBreakdownSelection(new Array(resp.children.length).fill(true));
+          setShowBreakdownModal(true);
+        } else {
+          // 既存のwarningが空ならデフォルト文言を表示して親のみ作成を通知
+          setBreakdownPreview([]);
+          setBreakdownSelection([]);
+          setShowBreakdownModal(false);
+          {
+            const hasExisting = !!(resp.warning && resp.warning.trim());
+            setBreakdownWarning(hasExisting ? resp.warning! : "AIによる子タスク提案がありませんでした。親タスクのみ作成しています。説明をもう少し具体的にすると分解が成功しやすくなります。");
+          }
+        }
+      } catch (e) {
+        console.error("AI細分化の呼び出しに失敗しました", e);
+        setBreakdownWarning("AI細分化の呼び出しに失敗しました。時間をおいて再試行してください。");
+      }
+    }
   };
+
+  // 細分化プレビューの選択切り替え
+  const toggleSelection = (idx: number) => {
+    setBreakdownSelection(prev => prev.map((v, i) => (i === idx ? !v : v)));
+  };
+
+  // 選択した子タスクを一括作成
+  const createSelectedChildren = async () => {
+    if (!lastCreatedTaskId) {
+      setBreakdownWarning("親タスクの作成情報が見つかりません。もう一度お試しください。");
+      return;
+    }
+    const selected = breakdownPreview
+      .map((c, idx) => ({ c, idx }))
+      .filter(({ idx }) => breakdownSelection[idx]);
+    if (selected.length === 0) {
+      setBreakdownWarning("作成対象の子タスクが選択されていません。");
+      return;
+    }
+    setCreatingChildren(true);
+    try {
+      for (const { c } of selected) {
+        const childInput: TaskInput = {
+          title: c.title,
+          description: c.description ?? "",
+          parent_task_id: lastCreatedTaskId,
+          // 親の属性を継承（未設定なら既定値）
+          priority: (lastCreatedTask?.priority ?? "medium") as TaskInput["priority"],
+          status: (lastCreatedTask?.status ?? "todo") as TaskInput["status"],
+          due_date: lastCreatedTask?.dueDate,
+        };
+        await createTask(childInput);
+      }
+      // 再取得して画面反映
+      const tasks = await fetchTasks();
+      setAllTasks(tasks);
+      setDataVersion(v => v + 1);
+      setPlanMessage({ type: 'success', text: '選択した子タスクを作成しました' });
+      // モーダルを閉じる
+      setShowBreakdownModal(false);
+      setBreakdownPreview([]);
+      setBreakdownSelection([]);
+    } catch (e) {
+      console.error("子タスクの一括作成に失敗", e);
+      setBreakdownWarning("子タスクの一括作成に失敗しました。時間をおいて再試行してください。");
+    } finally {
+      setCreatingChildren(false);
+    }
+  };
+
   // タスク削除ハンドラ
   const handleDelete = async (taskId: number) => {
     try {
@@ -350,6 +463,12 @@ export default function Dashboard() {
             <div className="plan-message" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <span className={`plan-message-chip ${planMessage.type === 'success' ? 'success' : 'error'}`}>{planMessage.text}</span>
               <button type="button" aria-label="閉じる" className="btn btn-sm btn-outline-secondary" onClick={() => setPlanMessage(null)}>×</button>
+            </div>
+          )}
+          {breakdownWarning && (
+            <div className="alert alert-warning py-2" style={{ marginTop: 8 }}>
+              <div style={{ whiteSpace: 'pre-wrap' }}>{breakdownWarning}</div>
+              <button type="button" className="btn btn-sm btn-outline-secondary ms-2" onClick={() => setBreakdownWarning(null)}>閉じる</button>
             </div>
           )}
 
@@ -515,6 +634,46 @@ export default function Dashboard() {
             onClose={() => { setShowForm(false); setEditingTask(null); setInitialDueDateForCreate(undefined); setParentIdForCreate(undefined); }}
           />
         )}
+        {/* AI細分化プレビューモーダル */}
+        {showBreakdownModal && (
+          <div className="modal d-block" tabIndex={-1}>
+            <div className="modal-dialog">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">AI細分化の提案</h5>
+                  <button type="button" className="btn-close" onClick={() => { setShowBreakdownModal(false); setBreakdownPreview([]); }}></button>
+                </div>
+                <div className="modal-body">
+                  {breakdownPreview.length === 0 ? (
+                    <div className="text-muted">提案がありません</div>
+                  ) : (
+                    <div className="vstack gap-2">
+                      <div className="d-flex justify-content-end gap-2">
+                        <button className="btn btn-sm btn-outline-secondary" onClick={() => allSelect(true)}>全選択</button>
+                        <button className="btn btn-sm btn-outline-secondary" onClick={() => allSelect(false)}>全解除</button>
+                      </div>
+                      {breakdownPreview.map((c, idx) => (
+                        <div key={idx} className="p-2 border rounded d-flex align-items-start gap-2">
+                          <input type="checkbox" className="form-check-input mt-1" checked={breakdownSelection[idx] ?? false} onChange={() => toggleSelection(idx)} />
+                          <div>
+                            <div className="fw-bold">{c.title}</div>
+                            {c.description && (<div className="text-muted" style={{ whiteSpace: 'pre-wrap' }}>{c.description}</div>)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="modal-footer">
+                  <button className="btn btn-outline-secondary" onClick={() => { setShowBreakdownModal(false); setBreakdownPreview([]); setBreakdownSelection([]); }}>閉じる</button>
+                  <button className="btn btn-primary" disabled={creatingChildren} onClick={createSelectedChildren}>
+                    {creatingChildren ? "作成中..." : "選択した子を作成"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* プラン変更モーダル */}
@@ -603,6 +762,8 @@ export default function Dashboard() {
                 >購入画面へ</button>
                 <div className="text-muted mt-2" style={{ fontSize: '0.85rem' }}>
                   ※ 本プランの購入はサブスクリプションではなく、1か月毎の買い切り（都度購入）です。
+                  <br />
+                  ※ Proなどの有料プランから無料プランへ変更する場合、当月の未使用分はボーナス回数として加算されます。
                 </div>
               </div>
             </div>

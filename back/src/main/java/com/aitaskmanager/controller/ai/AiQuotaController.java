@@ -70,30 +70,18 @@ public class AiQuotaController {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error("unauthorized"));
             }
 
-            // 認証情報からuser_idとplan_id を取得
+            // 認証情報からuser_id を取得
             String userId = AuthUtils.getUserId(auth);
-            Integer planIdFromToken = AuthUtils.getPlanId(auth);
 
             Users user = (userId != null) ? userMapper.selectByUserId(userId) : null;
             if (user == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error("user-not-found"));
             }
 
-            // 表示/計算用のプランは、現在アクティブな契約（subscriptions）のplan_sidを最優先で使用する。
-            // アクティブ契約がない場合は、ユーザテーブルのplan_idを使用。
+            // プラン情報を取得
             String planResolve = null;
-            Integer planId = null;
-            if (user.getUserSid() != null) {
-                Integer activePlanSid = subscriptionsCustomMapper.selectActivePlanSid(user.getUserSid());
-                if (activePlanSid != null) {
-                    planId = activePlanSid;
-                    planResolve = "active-subscription";
-                }
-            }
-            if (planId == null) {
-                planId = (planIdFromToken != null) ? planIdFromToken : user.getPlanId();
-                if (planIdFromToken != null) planResolve = "token"; else if (user.getPlanId() != null) planResolve = "db";
-            }
+            Integer planId = user.getPlanId();
+            if (user.getPlanId() != null) planResolve = "db";
             SubscriptionPlans plan = (planId != null) ? subscriptionPlansMapper.selectByPrimaryKey(planId) : null;
             if (plan == null) {
                 // フォールバック: 利用可能なプラン一覧からデフォルト（先頭）を選択
@@ -109,8 +97,9 @@ public class AiQuotaController {
                     // 何もしない（後続でAI不可扱い）
                 }
             }
-            // プランが無い場合はAI不可扱い（0）
-            Integer aiQuota = plan != null ? plan.getAiQuota() : 0; // null=unlimited, 0=not allowed
+            // プランのAIクオータ（NULLは無制限候補）。
+            Integer aiQuotaNullable = (plan != null) ? plan.getAiQuota() : null; // 4=unlimited, null=unlimited, 0=not allowed
+            int aiQuotaValue = (aiQuotaNullable != null) ? aiQuotaNullable.intValue() : 0; // 演算は非NULLで安全に
 
             // 今月のAI使用量を取得
             LocalDate now = LocalDate.now();
@@ -146,18 +135,17 @@ public class AiQuotaController {
 
             // レスポンス作成
             Map<String, Object> body = new HashMap<>();
-            body.put("planName", plan != null ? plan.getName() : ""); // 計算に用いたプラン（active優先）
+            body.put("planName", plan != null ? plan.getName() : ""); // 計算に用いたプラン（users.plan_id優先）
             body.put("planId", plan != null ? plan.getSubscriptionPlanSid() : null);
             body.put("planResolve", planResolve);
-            boolean unlimited = (aiQuota == null);
+            boolean unlimited = (aiQuotaNullable == null) || (aiQuotaNullable != null && aiQuotaNullable.intValue() == 4);
             body.put("unlimited", unlimited);
-            Integer remaining = unlimited ? null : Integer.valueOf(Math.max(0, aiQuota + bonus - used));
+            Integer remaining = unlimited ? null : Integer.valueOf(Math.max(0, aiQuotaValue + bonus - used));
             body.put("remaining", remaining);
             body.put("aiConfigured", aiConfigured);
             body.put("resetDate", resetDate.toString()); // ISO形式 YYYY-MM-DD
             body.put("daysUntilReset", Long.valueOf(daysUntilReset));
-            // 画面表示用（ユーザの希望プラン: users.plan_id）。今月はactive契約を計算に使いつつ、
-            // 表示は次回から反映予定のプラン名を出すためのフィールド。
+            // 画面表示用（ユーザの希望プラン: users.plan_id）。
             Integer displayPlanId = user.getPlanId();
             SubscriptionPlans displayPlan = (displayPlanId != null) ? subscriptionPlansMapper.selectByPrimaryKey(displayPlanId) : null;
             body.put("displayPlanName", displayPlan != null ? displayPlan.getName() : (plan != null ? plan.getName() : ""));

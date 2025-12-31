@@ -31,4 +31,10 @@
     ORDER BY started_at DESC
     LIMIT 1
   </select>
+  <update id="cancelActiveByUserSid">
+    UPDATE subscriptions
+    SET status = 'CANCELLED', updated_at = CURRENT_TIMESTAMP
+    WHERE user_sid = #{userSid}
+      AND status = 'ACTIVE'
+  </update>
 </mapper>

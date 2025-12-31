@@ -109,9 +109,16 @@ public class TaskService {
             // フラグがOFFならAI分解をスキップ（エラーにせず通常作成を継続）
             if (!openaiEnabled) {
                 log.info("[TaskService] AI decomposition skipped due to openai.enabled=false. parentSid={} mode={} ", task.getTaskSid(), "ai");
-                return task;
             } else {
-                generateChildTasks(task.getTaskSid(), userSid, request, "ai");
+                // 親タスクは既に挿入済み。クォータ不足や未設定などの理由で例外が発生しても
+                // 親の作成は維持したいので、ここでは例外を握りつぶしてログのみ残す。
+                try {
+                    generateChildTasks(task.getTaskSid(), userSid, request, "ai");
+                } catch (ResponseStatusException ex) {
+                    log.warn("[TaskService] AI decomposition skipped due to error. parentSid={} status={} message={}", task.getTaskSid(), ex.getStatusCode(), ex.getReason());
+                } catch (Exception ex) {
+                    log.error("[TaskService] AI decomposition unexpected error. parentSid={}", task.getTaskSid(), ex);
+                }
             }
         }
         LogUtil.service(TaskService.class, "tasks.create", "taskSid=" + task.getTaskSid() + " userSid=" + userSid, "completed");
@@ -295,7 +302,10 @@ public class TaskService {
         // OpenAIで分解
         List<String> items = openAiDecomposeService.decompose(baseDesc);
         if (items == null || items.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "AIで細分化できませんでした。説明を具体的にしてください");
+            // 親タスクは作成済みのため、例外にせず子生成をスキップして継続
+            log.info("[TaskService] ai_decompose yielded no items. parentSid={} descLength={}", parentTaskSid, baseDesc.length());
+            // 親のみ作成のため decomposed_at は更新しないで終了
+            return;
         }
 
         // 既存子タスクがある場合は再細分化：孫以下を含めて再帰削除してから再生成
@@ -448,23 +458,29 @@ public class TaskService {
             planId = u.getPlanId();
         }
 
-        // デフォルトは無料: 0回
+    // デフォルトは無料: 0回（4 は無制限）
         Integer aiQuota = 0;
         if (planId != null) {
             SubscriptionPlans plan = subscriptionPlansMapper.selectByPrimaryKey(planId);
             if (plan != null) aiQuota = plan.getAiQuota();
         }
 
-        // null は無制限
-        if (aiQuota != null && aiQuota <= 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "現在のプランではAI細分化は利用できません");
-        }
+        LocalDate now = LocalDate.now(ZoneId.of("Asia/Tokyo"));
+        Integer used = customAiUsageMapper.selectUsedCount(userSid, now.getYear(), now.getMonthValue());
+        if (used == null) used = 0;
+        Integer bonus = customAiUsageMapper.selectBonusCount(userSid, now.getYear(), now.getMonthValue());
+        if (bonus == null) bonus = 0;
 
-        if (aiQuota != null) {
-            LocalDate now = LocalDate.now(ZoneId.of("Asia/Tokyo"));
-            Integer used = customAiUsageMapper.selectUsedCount(userSid, now.getYear(), now.getMonthValue());
-            if (used != null && used >= aiQuota) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "今月のAI利用回数上限に達しました（" + aiQuota + "回）");
+        // 無制限プラン（aiQuota==4）は常に許可（API設定は別途チェック）
+        if (aiQuota != null && aiQuota.intValue() == 4) {
+            // used は内部計測のみ、制限なし
+        } else {
+            int effectiveQuota = aiQuota + bonus; // Free(0)でもボーナスがあれば許可
+            if (effectiveQuota <= 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "AIの利用可能回数がありません（プラン残＋ボーナス）");
+            }
+            if (used >= effectiveQuota) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "今月のAI利用回数上限に達しました（残り0）");
             }
         }
 
