@@ -1,5 +1,7 @@
 package com.aitaskmanager.repository.customMapper;
 
+import java.sql.Timestamp;
+
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -19,7 +21,8 @@ public interface SubscriptionsCustomMapper {
      */
     int insertSubscription(@Param("userSid") int userSid,
                            @Param("planSid") int planSid,
-                           @Param("expiresAt") java.sql.Timestamp expiresAt);
+                           @Param("expiresAt") Timestamp expiresAt,
+                           @Param("stripeSubscriptionId") String stripeSubscriptionId);
 
     /**
      * アクティブなサブスクリプションが存在するか確認する
@@ -40,13 +43,23 @@ public interface SubscriptionsCustomMapper {
 
     /**
      * 現在アクティブなサブスクリプションのplan_sidを取得する
+     * 
      * @param userSid ユーザーSID
      * @return plan_sid（存在しない場合はNULL）
      */
     Integer selectActivePlanSid(@Param("userSid") long userSid);
 
     /**
+     * 現在アクティブなサブスクリプションのStripe購読IDを取得する
+     * 
+     * @param userSid ユーザーSID
+     * @return stripe_subscription_id（存在しない場合はNULL）
+     */
+    String selectActiveStripeSubscriptionId(@Param("userSid") long userSid);
+
+    /**
      * ユーザーのACTIVEサブスクリプションをCANCELLEDへ更新する
+     * 
      * @param userSid ユーザーSID
      * @return 更新件数
      */

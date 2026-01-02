@@ -121,18 +121,18 @@ public class StripeBillingService {
         planId, userId, priceId, successUrl, cancelUrl,
         stripeApiKey != null && stripeApiKey.length() >= 7 ? stripeApiKey.substring(0, 7) : null);
 
+        // サブスクリプション（定期課金）
         SessionCreateParams params = SessionCreateParams.builder()
-                // 一回払いのCheckout
-                .setMode(SessionCreateParams.Mode.PAYMENT)
-                .addLineItem(SessionCreateParams.LineItem.builder()
-                        .setPrice(priceId)
-                        .setQuantity(1L)
-                        .build())
-        .putMetadata("userId", userId)
-        .putMetadata("planId", String.valueOf(planId))
-        .setSuccessUrl(successUrl)
-        .setCancelUrl(cancelUrl)
-                .build();
+            .setMode(SessionCreateParams.Mode.SUBSCRIPTION)
+            .addLineItem(SessionCreateParams.LineItem.builder()
+                .setPrice(priceId)
+                .setQuantity(1L)
+                .build())
+            .putMetadata("userId", userId)
+            .putMetadata("planId", String.valueOf(planId))
+            .setSuccessUrl(successUrl)
+            .setCancelUrl(cancelUrl)
+            .build();
 
         try {
             log.info("[Stripe] Calling Session.create ...");

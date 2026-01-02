@@ -13,6 +13,11 @@ import org.springframework.http.HttpStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
+import com.stripe.Stripe;
+import com.stripe.exception.StripeException;
+import com.stripe.model.Subscription;
+import com.stripe.param.SubscriptionUpdateParams;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 
 import lombok.RequiredArgsConstructor;
@@ -42,6 +47,9 @@ public class BillingController {
 
     @Autowired
     private SubscriptionPlansMapper subscriptionPlansMapper;
+
+    @Value("${stripe.apiKey}")
+    private String stripeApiKey;
 
     /**
      * Stripe Checkoutセッションを作成するエンドポイント
@@ -167,11 +175,35 @@ public class BillingController {
                         customAiUsageMapper.upsertAddBonus(userSid, year, month, delta);
                     }
                 }
-                // ACTIVE契約はCANCELLEDへ（当月以降は使わない）
-                subscriptionsCustomMapper.cancelActiveByUserSid(userSid);
+                // 期間末解約にするため、ローカルの契約は即時CANCELLEDにしない。
+                // Stripe側で cancel_at_period_end=true を設定し、期間終了時にWebhook等でCANCELLEDへ更新する。
             }
 
-            // 4) users.plan_id を Free に更新
+            // 4) Stripeのサブスクリプションを期間末解約に設定（存在すれば）
+            try {
+                String stripeSubId = subscriptionsCustomMapper.selectActiveStripeSubscriptionId(userSid);
+                if (stripeSubId != null && !stripeSubId.isBlank()) {
+                    if (stripeApiKey == null || stripeApiKey.isBlank()) {
+                        log.warn("Stripe API key is not configured. Skipping remote subscription period-end cancel. stripeSubId={}", stripeSubId);
+                    } else {
+                        Stripe.apiKey = stripeApiKey;
+                        try {
+                            Subscription sub = Subscription.retrieve(stripeSubId);
+                            SubscriptionUpdateParams params = SubscriptionUpdateParams.builder()
+                                    .setCancelAtPeriodEnd(true)
+                                    .build();
+                            sub = sub.update(params);
+                            log.info("Stripe subscription set to cancel at period end: {}", stripeSubId);
+                        } catch (StripeException se) {
+                            log.error("Failed to set cancel_at_period_end on Stripe subscription: {}", stripeSubId, se);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Stripe subscription period-end cancel flow failed", e);
+            }
+
+            // 5) users.plan_id を Free に更新
             userMapper.updatePlanIdBySid(userSid, planId);
 
             return ResponseEntity.ok().body(new MessageResponse("free-changed"));

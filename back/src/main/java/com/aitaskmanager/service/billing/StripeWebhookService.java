@@ -64,14 +64,11 @@ public class StripeWebhookService {
 
         var plan = subscriptionPlansMapper.selectByPrimaryKey(planSid);
         boolean isUnlimited = plan != null && plan.getAiQuota() == null;
+        // 無制限プランでも NULL に統一し、期間終了は Stripe サブスクリプションの状態で判断する。
         Timestamp expiresAt = null;
-        if (isUnlimited) {
-            long now = System.currentTimeMillis();
-            // 30日後に設定
-            expiresAt = new Timestamp(now + 30L * 24 * 60 * 60 * 1000);
-        }
-        System.out.println("[StripeWebhookService] inserting subscription userSid=" + userSid + ", planSid=" + planSid + ", isUnlimited=" + isUnlimited + ", expiresAt=" + expiresAt);
-        subscriptionsMapper.insertSubscription(userSid, planSid, expiresAt);
+        String stripeSubscriptionId = session.getSubscription();
+        System.out.println("[StripeWebhookService] inserting subscription userSid=" + userSid + ", planSid=" + planSid + ", isUnlimited=" + isUnlimited + ", expiresAt=" + expiresAt + ", stripeSubscriptionId=" + stripeSubscriptionId);
+        subscriptionsMapper.insertSubscription(userSid, planSid, expiresAt, stripeSubscriptionId);
         
         // ユーザテーブルの plan_id を更新（SIDベースで確実に更新）
         try {
