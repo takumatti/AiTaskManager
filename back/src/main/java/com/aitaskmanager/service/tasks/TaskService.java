@@ -186,12 +186,6 @@ public class TaskService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "タスクが見つからないか権限がありません");
         }
 
-        // 更新時にもAI細分化要求がある場合、当該タスクを親として子タスクを生成（暫定ダミー）
-        if (Boolean.TRUE.equals(request.getAi_decompose())) {
-            // AI細分化の注釈：説明が必要です（空だと分解できません）。また階層は最大4までです。
-            generateChildTasks(taskSid, userSid, request, "update");
-        }
-
         Tasks result = taskMapper.selectByTaskSidAndUserSid(taskSid, userSid);
         LogUtil.service(TaskService.class, "tasks.update", "taskSid=" + taskSid + " userSid=" + userSid, "completed");
         return result;

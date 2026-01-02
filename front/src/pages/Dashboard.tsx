@@ -103,6 +103,10 @@ export default function Dashboard() {
   const [creatingChildren, setCreatingChildren] = useState(false);
   const [lastCreatedTaskId, setLastCreatedTaskId] = useState<number | null>(null);
   const [lastCreatedTask, setLastCreatedTask] = useState<Task | null>(null);
+  // AI細分化: 子ごとの優先度（初期値は親の優先度を継承）
+  const [childPriorities, setChildPriorities] = useState<Array<"LOW" | "NORMAL" | "HIGH">>([]);
+  // 一括変更用の優先度（初期値は親の優先度）
+  const [bulkPriority, setBulkPriority] = useState<"LOW" | "NORMAL" | "HIGH">("NORMAL");
   const allSelect = (checked: boolean) => {
     setBreakdownSelection(prev => prev.map(() => checked));
   };
@@ -306,64 +310,75 @@ export default function Dashboard() {
 
   // タスク作成ハンドラ
   const handleCreated = async (input: TaskInput) => {
+    let createdTask: Task | null = null;
     try {
-      const created = await createTask(input);
+      createdTask = await createTask(input);
       const tasks = await fetchTasks();
       setAllTasks(tasks);
       setDataVersion((v) => v + 1);
       setShowForm(false);
       setEditingTask(null);
-      setLastCreatedTaskId(created?.id ?? null);
-      setLastCreatedTask(created ?? null);
-      console.debug("lastCreatedTaskId", created?.id)
+      setLastCreatedTaskId(createdTask?.id ?? null);
+      setLastCreatedTask(createdTask ?? null);
+      console.debug("lastCreatedTaskId", createdTask?.id);
+
+      // 新規作成後にAI細分化（チェックON時のみプレビューを開く）
+      if ((input as unknown as { ai_decompose?: boolean }).ai_decompose) {
+        try {
+          const prioForReq: "HIGH" | "NORMAL" | "LOW" | undefined =
+            input.priority === "LOW" ? "LOW" :
+            input.priority === "NORMAL" ? "NORMAL" :
+            input.priority === "HIGH" ? "HIGH" : undefined;
+          const req: TaskBreakdownRequest = {
+            title: input.title,
+            description: input.description ?? "",
+            dueDate: input.due_date,
+            priority: prioForReq,
+          };
+          console.debug("[Dashboard] breakdown request", req);
+          const resp: TaskBreakdownResponse = await breakdownTask(req);
+          console.debug("[Dashboard] breakdown response children", resp.children?.length ?? 0, resp);
+          // 警告があればフォーム上部に表示（ダッシュボードヘッダー直下）
+          if (resp.warning && resp.warning.trim()) {
+            setBreakdownWarning(resp.warning);
+          }
+          // 子候補があればプレビューモーダルを開く／なければ警告を明示
+          if (Array.isArray(resp.children) && resp.children.length > 0) {
+            setBreakdownPreview(resp.children);
+            setBreakdownSelection(new Array(resp.children.length).fill(true));
+            // 初期の優先度は親の優先度を継承（なければ NORMAL）
+            const parentPri = (createdTask?.priority as TaskInput["priority"]) || "NORMAL";
+            setChildPriorities(new Array(resp.children.length).fill(parentPri as "LOW" | "NORMAL" | "HIGH"));
+            setBulkPriority((parentPri as "LOW" | "NORMAL" | "HIGH"));
+            // 既存の警告は一旦クリアして新しいプレビューに集中
+            setBreakdownWarning(null);
+            setShowBreakdownModal(true);
+          } else {
+            // 既存のwarningが空ならデフォルト文言を表示して親のみ作成を通知
+            setBreakdownPreview([]);
+            setBreakdownSelection([]);
+            setChildPriorities([]);
+            setBulkPriority("NORMAL");
+            setShowBreakdownModal(false);
+            {
+              const hasExisting = !!(resp.warning && resp.warning.trim());
+              setBreakdownWarning(
+                hasExisting
+                  ? resp.warning!
+                  : "AIによる子タスク提案がありませんでした。親タスクのみ作成しています。説明をもう少し具体的にすると分解が成功しやすくなります。"
+              );
+            }
+          }
+        } catch (e) {
+          console.error("AI細分化の呼び出しに失敗しました", e);
+          const message = (e as Error)?.message || "AI細分化の呼び出しに失敗しました。時間をおいて再試行してください。";
+          setBreakdownWarning(message);
+          // エラー時はモーダルを閉じて操作を解除
+          setShowBreakdownModal(false);
+        }
+      }
     } catch (error) {
       console.error("作成エラー:", error);
-    }
-
-  // 新規作成後にAI細分化（チェックON時のみプレビューを開く）
-  if ((input as unknown as { ai_decompose?: boolean }).ai_decompose) {
-      try {
-        const prioForReq: "HIGH" | "NORMAL" | "LOW" | undefined =
-          input.priority === "LOW" ? "LOW" :
-          input.priority === "NORMAL" ? "NORMAL" :
-          input.priority === "HIGH" ? "HIGH" : undefined;
-        const req: TaskBreakdownRequest = {
-          title: input.title,
-          description: input.description ?? "",
-          dueDate: input.due_date,
-          priority: prioForReq,
-         };
-        console.debug("[Dashboard] breakdown request", req);
-        const resp: TaskBreakdownResponse = await breakdownTask(req);
-        console.debug("[Dashboard] breakdown response children", resp.children?.length ?? 0, resp);
-        // 警告があればフォーム上部に表示（ダッシュボードヘッダー直下）
-        if (resp.warning && resp.warning.trim()) {
-          setBreakdownWarning(resp.warning);
-        }
-        // 子候補があればプレビューモーダルを開く／なければ警告を明示
-        if (Array.isArray(resp.children) && resp.children.length > 0) {
-          setBreakdownPreview(resp.children);
-          setBreakdownSelection(new Array(resp.children.length).fill(true));
-          // 既存の警告は一旦クリアして新しいプレビューに集中
-          setBreakdownWarning(null);
-          setShowBreakdownModal(true);
-        } else {
-          // 既存のwarningが空ならデフォルト文言を表示して親のみ作成を通知
-          setBreakdownPreview([]);
-          setBreakdownSelection([]);
-          setShowBreakdownModal(false);
-          {
-            const hasExisting = !!(resp.warning && resp.warning.trim());
-            setBreakdownWarning(hasExisting ? resp.warning! : "AIによる子タスク提案がありませんでした。親タスクのみ作成しています。説明をもう少し具体的にすると分解が成功しやすくなります。");
-          }
-        }
-      } catch (e) {
-        console.error("AI細分化の呼び出しに失敗しました", e);
-        const message = (e as Error)?.message || "AI細分化の呼び出しに失敗しました。時間をおいて再試行してください。";
-        setBreakdownWarning(message);
-        // エラー時はモーダルを閉じて操作を解除
-        setShowBreakdownModal(false);
-      }
     }
   };
 
@@ -393,15 +408,18 @@ export default function Dashboard() {
     }
     setCreatingChildren(true);
     try {
-      for (const { c } of selected) {
+      for (const { c, idx } of selected) {
+        // 子ごとに選択された優先度（未設定なら親→NORMAL）
+        const priorityForChild: TaskInput["priority"] = (childPriorities[idx] as TaskInput["priority"]) || (lastCreatedTask?.priority as TaskInput["priority"]) || "NORMAL";
+        const statusForChild: TaskInput["status"] = (lastCreatedTask?.status as TaskInput["status"]) || "TODO";
         const childInput: TaskInput = {
           title: c.title,
           description: c.description ?? "",
           parent_task_id: lastCreatedTaskId,
           parentTaskId: lastCreatedTaskId as number,
           // 親の属性を継承（未設定なら既定値）
-          priority: (lastCreatedTask?.priority ?? "medium") as TaskInput["priority"],
-          status: (lastCreatedTask?.status ?? "todo") as TaskInput["status"],
+          priority: priorityForChild,
+          status: statusForChild,
           due_date: lastCreatedTask?.dueDate,
         };
         console.debug("[Dashboard] childInput payload", childInput);
@@ -416,6 +434,8 @@ export default function Dashboard() {
       setShowBreakdownModal(false);
       setBreakdownPreview([]);
       setBreakdownSelection([]);
+      setChildPriorities([]);
+      setBulkPriority("NORMAL");
     } catch (e) {
       console.error("子タスクの一括作成に失敗", e);
       // サーバーからのメッセージ（例: 親タスクが見つかりませんでした）を優先表示
@@ -667,16 +687,63 @@ export default function Dashboard() {
                     <div className="text-muted">提案がありません</div>
                   ) : (
                     <div className="vstack gap-2" style={{ maxHeight: '360px', overflowY: 'auto' }}>
-                      <div className="d-flex justify-content-end gap-2">
-                        <button className="btn btn-sm btn-outline-secondary" onClick={() => allSelect(true)}>全選択</button>
-                        <button className="btn btn-sm btn-outline-secondary" onClick={() => allSelect(false)}>全解除</button>
+                      <div className="d-flex justify-content-between align-items-center gap-2">
+                        <div className="d-flex align-items-center gap-2">
+                          <label className="form-label mb-0">一括変更</label>
+                          <select
+                            className="form-select form-select-sm"
+                            style={{ width: 140 }}
+                            value={bulkPriority}
+                            onChange={(e) => setBulkPriority(e.target.value as "LOW" | "NORMAL" | "HIGH")}
+                          >
+                            <option value="HIGH">高</option>
+                            <option value="NORMAL">中</option>
+                            <option value="LOW">低</option>
+                          </select>
+                          <button
+                            className="btn btn-sm btn-outline-primary"
+                            disabled={!breakdownSelection.some(Boolean)}
+                            onClick={() => {
+                              setChildPriorities(prev => prev.map((v, i) => (breakdownSelection[i] ? bulkPriority : v)));
+                            }}
+                          >選択に適用</button>
+                          <button
+                            className="btn btn-sm btn-outline-primary"
+                            onClick={() => {
+                              setChildPriorities(prev => prev.map(() => bulkPriority));
+                            }}
+                          >全てに適用</button>
+                        </div>
+                        <div className="d-flex justify-content-end gap-2">
+                          <button className="btn btn-sm btn-outline-secondary" onClick={() => allSelect(true)}>全選択</button>
+                          <button className="btn btn-sm btn-outline-secondary" onClick={() => allSelect(false)}>全解除</button>
+                        </div>
                       </div>
                       {breakdownPreview.map((c, idx) => (
                         <div key={idx} className="p-2 border rounded d-flex align-items-start gap-2">
                           <input type="checkbox" className="form-check-input mt-1" checked={breakdownSelection[idx] ?? false} onChange={() => toggleSelection(idx)} />
-                          <div>
+                          <div className="flex-grow-1">
                             <div className="fw-bold">{c.title}</div>
                             {c.description && (<div className="text-muted" style={{ whiteSpace: 'pre-wrap' }}>{c.description}</div>)}
+                          </div>
+                          <div className="d-flex align-items-center gap-2" style={{ minWidth: 160 }}>
+                            <label className="form-label mb-0" style={{ whiteSpace: 'nowrap' }}>優先度</label>
+                            <select
+                              className="form-select form-select-sm"
+                              value={childPriorities[idx] ?? ((lastCreatedTask?.priority as TaskInput["priority"]) || "NORMAL")}
+                              onChange={(e) => {
+                                const v = e.target.value as "LOW" | "NORMAL" | "HIGH";
+                                setChildPriorities(prev => {
+                                  const next = [...prev];
+                                  next[idx] = v;
+                                  return next;
+                                });
+                              }}
+                            >
+                              <option value="HIGH">高</option>
+                              <option value="NORMAL">中</option>
+                              <option value="LOW">低</option>
+                            </select>
                           </div>
                         </div>
                       ))}
