@@ -79,8 +79,9 @@
   background: #fafbfc;
 }
 .task-tree-item.status-overdue {
-  border-color: #d9534f; /* 赤系の枠（期限超過） */
-  background: #fff1f0;  /* ごく薄い赤背景 */
+  /* 期限超過は背景で強調（凡例準拠） */
+  border-color: #e09a96; /* 枠はやや淡い赤で補助 */
+  background: #ffe5e3;  /* 薄い赤で全面を塗る */
 }
 /* 優先度別の左ボーダーアクセント */
 /* 優先度（画像準拠: 高=オレンジ、低=紫） */
@@ -91,7 +92,7 @@
   border-left: 3px solid #0d6efd; /* 青（据え置き） */
 }
 .task-tree-item.priority-low {
-  border-left: 3px solid #7e57c2; /* 紫 */
+  border-left: 5px solid #dc3545; /* 赤・太めで強調 */
 }
 .task-tree-inner {
   /* インナーで左右余白を一元管理し、展開時も幅を不変に */
@@ -297,3 +298,95 @@
   margin-bottom: 4px;
   background: #fff;
 }
+
+/* フラット表示（整えたUI） */
+.task-list-flat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.task-flat-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto; /* タイトル | メタ | アクション */
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #e3e6eb;
+  border-radius: var(--row-radius, 10px);
+  background: #fff;
+  padding: var(--row-pad-y, 8px) var(--row-pad-x, 12px);
+}
+.task-flat-row:hover {
+  box-shadow: 0 2px 6px rgba(16, 24, 40, 0.06);
+  border-color: #d9dee6;
+}
+.flat-main .task-title {
+  font-weight: 600;
+  cursor: pointer;
+}
+.flat-meta {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.meta-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  background: #f3f4f6;
+  color: #475467;
+  width: 72px; /* どのラベルでも同じ幅に固定 */
+}
+/* 優先度は1文字のため、やや狭めの幅に上書き */
+.priority-badge {
+  width: 52px;
+}
+.status-badge.status-todo { background: #e7f0ff; color: #1d4ed8; }
+.status-badge.status-doing { background: #fff1cc; color: #b45309; }
+.status-badge.status-done { background: #def7e5; color: #166534; }
+.status-badge.status-waiting { background: #eef2f7; color: #6b7280; }
+.priority-badge.priority-high { background: #ffe3c2; color: #b45309; }
+.priority-badge.priority-normal { background: #e7f0ff; color: #1d4ed8; }
+.priority-badge.priority-low { background: #ffd6d9; color: #b91c1c; }
+.due-badge.over { background: #ffd6d9; color: #b91c1c; }
+.due-badge.in { background: #eef2f7; color: #475467; }
+.due-badge.unset { background: #f3f4f6; color: #6b7280; }
+.due-badge.unset {
+  flex-direction: column; /* バッジ内で縦並び */
+  padding: 4px 8px; /* 縦並びに合わせて少し上下余白を増やす */
+}
+.due-badge.unset .due-label {
+  font-weight: 600;
+}
+.due-badge.unset .due-text {
+  margin-top: 2px;
+}
+.flat-actions {
+  display: inline-grid;
+  grid-template-columns: repeat(1, var(--action-col-width, 68px));
+  gap: 6px;
+}
+
+@media (max-width: 800px) {
+  .task-flat-row {
+    grid-template-columns: minmax(0, 1fr) auto; /* タイトル | アクション */
+  }
+  .flat-meta { display: none; }
+}
+
+/* タスクタイトルの折り返しと深さに応じたフォント縮小 */
+.task-title {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.3;
+}
+.task-tree-main.depth-1 .task-title { font-size: 0.95rem; }
+.task-tree-main.depth-2 .task-title { font-size: 0.92rem; }
+.task-tree-main.depth-3 .task-title { font-size: 0.9rem; }
+.task-tree-main.depth-4 .task-title { font-size: 0.88rem; }

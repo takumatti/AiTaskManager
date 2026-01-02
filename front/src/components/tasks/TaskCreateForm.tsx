@@ -24,6 +24,7 @@ export const TaskCreateForm = ({
   hideAiDecompose,
 }: Props) => {
   const isEdit = !!editingTask;
+  const isChildCreate = !isEdit && !!parentIdForCreate;
   // モーダル表示中は背景スクロールを禁止
   useEffect(() => {
     const prevOverflow = document.body.style.overflow;
@@ -84,7 +85,10 @@ export const TaskCreateForm = ({
 
   // selectのvalueはUI値（日本語）
   const [priority, setPriority] = useState(() => dbToUiPriority(editingTask?.priority));
-  const [status, setStatus] = useState(() => dbToUiStatus(editingTask?.status));
+  const [status, setStatus] = useState(() => {
+    // 子タスク作成時は未着手に統一
+    return isChildCreate ? "未着手" : dbToUiStatus(editingTask?.status);
+  });
   // yyyy/MM/dd→yyyy-MM-dd変換（input type=date用）
   const toInputDate = (d?: string) => {
     if (!d) return undefined;
@@ -155,7 +159,8 @@ export const TaskCreateForm = ({
       title: trimmedTitle,
       description: trimmedDesc,
       priority: uiToDbPriority(priority),
-      status: uiToDbStatus(status),
+      // 子タスク作成時は未着手（TODO）固定
+      status: isChildCreate ? "TODO" : uiToDbStatus(status),
       due_date: dueDate && dueDate !== "" ? dueDate : undefined,
       // 新規作成時のみAI細分化フラグを送信
       ...(isEdit ? {} : { ai_decompose: aiDecompose }),
@@ -211,11 +216,16 @@ export const TaskCreateForm = ({
 
           <div className="form-group">
             <label htmlFor="status">ステータス</label>
-            <select id="status" name="status" value={status} onChange={(e) => setStatus(e.target.value)}>
+            <select id="status" name="status" value={status} onChange={(e) => setStatus(e.target.value)} disabled={isChildCreate}>
               <option value="未着手">未着手</option>
               <option value="進行中">進行中</option>
               <option value="完了">完了</option>
             </select>
+            {isChildCreate && (
+              <div className="form-hint" style={{ marginTop: 4, color: "#6b7280", fontSize: 12 }}>
+                子タスクのステータスは未着手で作成されます。
+              </div>
+            )}
           </div>
 
           <div className="form-group">

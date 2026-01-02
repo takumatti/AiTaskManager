@@ -10,24 +10,26 @@ export const TaskList = ({
   onDelete,
   onEdit,
   onCreateChild,
+  forceFlat,
 }: {
   tasks: Task[];
   onDelete: (id: number) => void;
   onEdit: (task: Task) => void;
   onCreateChild?: (parentId: number, depth: number) => void;
+  forceFlat?: boolean; // 渡されたtasksをフラットにそのまま表示（フィルタ/ソート反映）
 }) => {
   const [tree, setTree] = useState<TaskTreeNode[] | null>(null);
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
   const [highlightIds, setHighlightIds] = useState<Set<number>>(new Set());
   const [loadingRedecompose, setLoadingRedecompose] = useState<number | null>(null);
 
-  // 初回はフロット配列のみ表示。ユーザーが"階層表示"操作をしたらtree取得する想定だが、簡易版で自動ロード
+  // 階層表示が不要ならツリーの自動ロードをスキップ
   useMemo(() => {
-    // ツリー未取得なら試行
+    if (forceFlat) return;
     if (!tree) {
       fetchTaskTree().then(setTree).catch(e => console.warn("tree load fail", e));
     }
-  }, [tree]);
+  }, [tree, forceFlat]);
 
   // tasks が変化したらツリーを再取得（新規作成/更新/削除後に反映）
   // 変更検出を件数だけでなく主要フィールドからのシグネチャで行う
@@ -42,10 +44,11 @@ export const TaskList = ({
   }, [tasks]);
 
   useEffect(() => {
+    if (forceFlat) return; // フラット表示時はツリー再取得しない
     fetchTaskTree()
       .then(setTree)
       .catch(e => console.warn("tree reload fail", e));
-  }, [tasksSignature]);
+  }, [tasksSignature, forceFlat]);
 
   const handleToggle = (id: number) => {
     setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
@@ -113,7 +116,7 @@ export const TaskList = ({
       >
         <div className="task-tree-inner">
           <div className="task-tree-row">
-          <div className="task-tree-main" style={indentStyle}>
+          <div className={`task-tree-main depth-${depth}`} style={indentStyle}>
             {hasChildren && (
               <button className="collapse-btn" onClick={() => handleToggle(node.id)}>
                 {isExpanded ? "▼" : "▶"}
@@ -168,7 +171,7 @@ export const TaskList = ({
     updatedAt: n.updatedAt,
   });
 
-  if (tree && tree.length > 0) {
+  if (!forceFlat && tree && tree.length > 0) {
     return (
       <>
         <div className="task-annotations">
@@ -188,9 +191,55 @@ export const TaskList = ({
     );
   }
 
-  // フォールバック: 旧フラット表示
+  // フラット表示: フィルタ/ソート済みのtasksをそのまま出す
   if (tasks.length === 0) return <p>タスクがありません</p>;
-  return <div className="task-list-fallback">{tasks.map(t => (
-    <div key={t.id} className="task-flat-row">{t.title}</div>
-  ))}</div>;
+  return (
+    <div className="task-list-flat">
+      {tasks.map(t => {
+        const statusClass = t.status ? `status-${String(t.status).toLowerCase()}` : "";
+        const priorityClass = t.priority ? `priority-${String(t.priority).toLowerCase()}` : "";
+        // 期限超過（未完了かつ期限過去）
+        let isOverdue = false;
+        try {
+          const isDone = String(t.status).toUpperCase() === "DONE";
+          if (!isDone && t.dueDate) {
+            const due = new Date(t.dueDate);
+            const today = new Date();
+            const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+            isOverdue = startOfDay(due).getTime() < startOfDay(today).getTime();
+          }
+        } catch {
+          // overdue判定中のパース失敗などは無視
+        }
+        const jpStatusMap: Record<string, string> = { todo: "未着手", doing: "進行中", done: "完了", waiting: "保留" };
+        const jpPriorityMap: Record<string, string> = { high: "高", normal: "中", low: "低" };
+        const statusLabel = t.status ? jpStatusMap[String(t.status).toLowerCase()] ?? String(t.status) : "";
+        const priorityLabel = t.priority ? jpPriorityMap[String(t.priority).toLowerCase()] ?? String(t.priority) : "";
+        return (
+          <div key={t.id} className={`task-flat-row ${statusClass} ${priorityClass} ${isOverdue ? 'status-overdue' : ''}`}>
+            <div className="flat-main" onClick={() => onEdit(t)}>
+              <span className="task-title">{t.title}</span>
+            </div>
+            <div className="flat-meta">
+              {t.status && (<span className={`meta-badge status-badge ${statusClass}`}>{statusLabel}</span>)}
+              {t.priority && (<span className={`meta-badge priority-badge ${priorityClass}`}>{priorityLabel}</span>)}
+              {t.dueDate ? (
+                <span className={`meta-badge due-badge ${isOverdue ? 'over' : 'in'}`}>
+                  期限: {new Date(t.dueDate).toLocaleDateString()}
+                </span>
+              ) : (
+                <span className={`meta-badge due-badge unset`}>
+                  <span className="due-label">期限:</span>
+                  <span className="due-text">未設定</span>
+                </span>
+              )}
+            </div>
+            <div className="flat-actions">
+              <button className="delete-btn" onClick={() => onDelete(t.id)}>削除</button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 };

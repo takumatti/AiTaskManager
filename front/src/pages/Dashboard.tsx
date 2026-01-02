@@ -65,6 +65,8 @@ export default function Dashboard() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   // モーダル表示
   const [showForm, setShowForm] = useState(false);
+  // 一覧の表示モード（階層/フラット）
+  const [listMode, setListMode] = useState<"tree" | "flat">("tree");
   // カレンダーセルから新規作成する際の初期期日
   const [initialDueDateForCreate, setInitialDueDateForCreate] = useState<string | undefined>(undefined);
   // 手動子作成用の親ID
@@ -524,20 +526,30 @@ export default function Dashboard() {
           )}
 
             <div className="dashboard-header-sub" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              {/* 左端：表示切替ボタン */}
-              <div className="dashboard-view-toggle-left" style={{ flex: '0 0 auto' }}>
-              <button
-                className="btn btn-primary view-toggle-btn"
-                style={{ whiteSpace: 'nowrap', width: 120, minHeight: 36, textAlign: 'center' }}
-                onClick={() => setView(view === "list" ? "calendar" : "list")}
-              >
-                {view === "list" ? (
-                  (<><div>カレンダー</div><div>表示</div></>)
-                ) : (
-                  (<><div>リスト</div><div>表示</div></>)
+              {/* 左端：表示切替ボタン＋その下にリスト表示モードトグル（縦並び） */}
+              <div className="dashboard-view-toggle-left" style={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <button
+                  className="btn btn-primary view-toggle-btn"
+                  style={{ whiteSpace: 'nowrap', width: 120, minHeight: 36, textAlign: 'center' }}
+                  onClick={() => setView(view === "list" ? "calendar" : "list")}
+                >
+                  {view === "list" ? (
+                    (<><div>カレンダー</div><div>表示</div></>)
+                  ) : (
+                    (<><div>リスト</div><div>表示</div></>)
+                  )}
+                </button>
+                {view === "list" && (
+                  <button
+                    className="btn btn-outline-secondary"
+                    style={{ whiteSpace: 'nowrap', minHeight: 36, width: 120, textAlign: 'center' }}
+                    onClick={() => setListMode(listMode === "flat" ? "tree" : "flat")}
+                    title="一覧の表示形式を切替（階層/フラット）"
+                  >
+                    {listMode === "flat" ? "階層表示" : "フラット表示"}
+                  </button>
                 )}
-              </button>
-            </div>
+              </div>
 
               {/* 中央：AI利用制限＋リセット情報（中央寄せ） */}
               <div className="quota-info" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, maxWidth: '100%', flex: '1 1 auto' }}>
@@ -627,18 +639,29 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* フィルタ */}
+        {/* フィルタ（ツリー表示時は全体非活性、カレンダー表示時は並び替えのみ非活性）*/}
         <div className="dashboard-filters-card">
-          <div className="dashboard-filters-row">
+          {/* ツリー表示中は全体無効化 */}
+          <div className="dashboard-filters-row" style={listMode === "tree" ? { pointerEvents: 'none', opacity: 0.6 } : undefined}>
             <div style={{ flex: 1 }}>
               <div className="dashboard-filters-label">ステータス</div>
               <TaskFilters status={status} priority={priority} onStatusChange={setStatus} onPriorityChange={setPriority} />
             </div>
-            <div style={{ width: 240 }}>
+            <div style={listMode === "tree" ? { width: 240 } : { width: 240, ...(view === "calendar" ? { pointerEvents: 'none', opacity: 0.6 } : {}) }}>
               <div className="dashboard-filters-label">並び替え</div>
               <TaskSort sort={sort} onSortChange={setSort} />
             </div>
           </div>
+          {listMode === "tree" && (
+            <div className="text-muted" style={{ marginTop: 6, fontSize: 13 }}>
+              階層表示ではステータス・並び替えは適用されません。フラット表示に切り替えると反映されます。
+            </div>
+          )}
+          {view === "calendar" && (
+            <div className="text-muted" style={{ marginTop: 6, fontSize: 13 }}>
+              カレンダー表示では並び替えは適用されません。ステータス・優先度のフィルタは利用できます。
+            </div>
+          )}
         </div>
 
         {/* リスト or カレンダー */}
@@ -658,6 +681,7 @@ export default function Dashboard() {
                 setInitialDueDateForCreate(undefined);
                 setShowForm(true);
               }}
+              forceFlat={listMode === "flat"}
             />
             <TaskLegend />
           </>
