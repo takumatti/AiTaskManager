@@ -28,8 +28,6 @@ import com.aitaskmanager.repository.model.Users;
 import com.aitaskmanager.util.TaskUtils;
 import com.aitaskmanager.util.LogUtil;
 import com.aitaskmanager.service.ai.OpenAiDecomposeService;
-import com.aitaskmanager.service.ai.OpenAiTaskService;
-import com.aitaskmanager.service.ai.OpenAiTaskService.SubTask;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -55,8 +53,7 @@ public class TaskService {
     @Autowired
     private OpenAiDecomposeService openAiDecomposeService;
 
-    @Autowired
-    private OpenAiTaskService openAiTaskService;
+    
 
     // OpenAI APIキーはapplication.propertiesから取得（環境変数依存を排除）
     @Value("${spring.ai.openai.api-key:}")
@@ -290,92 +287,6 @@ public class TaskService {
         return depth >= 4; // root=1, 子=2, 孫=3, ひ孫=4 まで許容
     }
 
-    /**
-     * 指定親タスクの下に子タスクを生成する
-     * 
-     * @param parentTaskSid 親タスクSID
-     * @param userSid ユーザーSID
-     * @param request タスクリクエスト
-     * @param mode 呼び出しモード（create/update）
-     */
-    private void generateChildTasks(Integer parentTaskSid, Integer userSid, TaskRequest request, String mode) {
-        // 深さ上限チェック（4階層まで）
-        if (isMaxDepthReached(parentTaskSid, userSid)) {
-            log.info("[TaskService] skip ai_decompose due to depth limit (>=4). parentSid={}", parentTaskSid);
-            return; // 親の更新/作成は成功させつつ子生成は行わない
-        }
-
-        // AI操作時のみクォータ/設定チェックを適用
-        boolean aiRequested = "ai".equalsIgnoreCase(mode);
-        if (aiRequested) {
-            // プランのAIクォータを確認（AI未設定や上限超過時はエラー）
-            enforceAiQuotaOrThrow(userSid);
-        } else {
-            // 通常作成ではAIチェックをスキップして子生成ロジックもスキップ
-            log.info("[TaskService] generateChildTasks skipped (non-AI mode). mode={} parentSid={}", mode, parentTaskSid);
-            return;
-        }
-
-        String baseTitle = TaskUtils.defaultString(request.getTitle(), "").trim();
-        String baseDesc = TaskUtils.defaultString(request.getDescription(), "").trim();
-        if (baseDesc.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "説明が空のため細分化できません");
-        }
-
-        // OpenAIで分解（プレビューと同一ロジックを使用）
-        List<SubTask> subs = openAiTaskService.generateSubTasks(baseTitle, baseDesc, request.getDue_date(), TaskUtils.normalizePriority(request.getPriority()));
-        List<String> items = (subs != null) ? subs.stream()
-            .map(st -> {
-                // 保存時はタイトルは親ベースで連番付与、説明はサブタスク説明を採用
-                String desc = (st.description != null && !st.description.isBlank()) ? st.description : st.title;
-                return desc != null ? desc.trim() : "";
-            })
-            .filter(s -> !s.isBlank())
-            .toList() : java.util.List.of();
-        // 親説明と同一の行（トリム/全角半角差異をある程度吸収）を除外して重複作成を防止
-        if (items != null) {
-            String normalizedParent = normalizeText(baseDesc);
-            items = items.stream()
-                .map(this::normalizeText)
-                .filter(s -> !s.equalsIgnoreCase(normalizedParent))
-                .map(s -> s) // normalizedで比較後、元の文字列ではなく正規化済みを採用
-                .toList();
-        }
-        if (items == null || items.isEmpty()) {
-            // 親タスクは作成済みのため、例外にせず子生成をスキップして継続
-            log.info("[TaskService] ai_decompose yielded no items. parentSid={} descLength={}", parentTaskSid, baseDesc.length());
-            // 親のみ作成のため decomposed_at は更新しないで終了
-            return;
-        }
-
-        // 既存子タスクがある場合は再細分化：孫以下を含めて再帰削除してから再生成
-        int existingChildren = taskMapper.countChildrenByParentSid(parentTaskSid);
-        if (existingChildren > 0) {
-            deleteDescendants(parentTaskSid, userSid);
-            log.info("[TaskService] ai_decompose '{}' delete existing descendants done parentId={}", mode, parentTaskSid);
-        }
-
-        int maxChildren = 12;
-        int children = Math.min(items.size(), maxChildren);
-        for (int i = 0; i < children; i++) {
-            String item = items.get(i);
-            Tasks child = new Tasks();
-            child.setUserSid(userSid);
-            child.setParentTaskSid(parentTaskSid);
-            child.setTitle((baseTitle.isEmpty() ? "タスク" : baseTitle) + " - サブタスク" + (i + 1));
-            child.setDescription(item);
-            child.setPriority(TaskUtils.normalizePriority(request.getPriority()));
-            child.setStatus("TODO");
-            child.setDueDate(TaskUtils.toSqlDate(request.getDue_date()));
-            taskMapper.insert(child);
-            log.debug("[TaskService] child inserted taskSid={} parentTaskSid={} mode={}", child.getTaskSid(), child.getParentTaskSid(), mode);
-        }
-        // 親の細分化日時を更新
-        taskMapper.updateDecomposedAt(parentTaskSid, userSid);
-        // 利用回数をカウント
-        incrementAiUsage(userSid);
-        log.info("[TaskService] ai_decompose {} children generated parentSid={} mode={} (decomposed_at updated)", children, parentTaskSid, mode);
-    }
 
     /**
      * 階層ツリー取得
@@ -542,22 +453,5 @@ public class TaskService {
         customAiUsageMapper.upsertIncrement(userSid, now.getYear(), now.getMonthValue());
     }
 
-    /**
-     * 簡易正規化（重複判定用）
-     * - 前後空白・連続空白の縮約
-     * - 箇条書きの記号削除（-, *, •）
-     * - 全角英数を半角に（Java標準では簡易対応: toUpperCaseによるケース統一のみ）
-     * 
-     * @param s 入力文字列
-     * @return 正規化済み文字列
-     */
-    private String normalizeText(String s) {
-        if (s == null) return "";
-        String t = s.trim()
-            .replaceFirst("^[\\-\\*]\\s*", "")
-            .replaceFirst("^•\\s*", "")
-            .replaceAll("\\s+", " ");
-        // ケース統一（英字のみ）。より高度な全角半角統一は必要なら追加する
-        return t.toUpperCase();
-    }
+    
 }

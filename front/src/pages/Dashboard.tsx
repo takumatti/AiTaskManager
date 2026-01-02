@@ -107,6 +107,11 @@ export default function Dashboard() {
   const [childPriorities, setChildPriorities] = useState<Array<"LOW" | "NORMAL" | "HIGH">>([]);
   // 一括変更用の優先度（初期値は親の優先度）
   const [bulkPriority, setBulkPriority] = useState<"LOW" | "NORMAL" | "HIGH">("NORMAL");
+  // 子ごとの期限日（YYYY-MM-DD）。初期値は親の期限日、未設定は空文字
+  const [childDueDates, setChildDueDates] = useState<string[]>([]);
+  // type="date"用に yyyy/MM/dd -> yyyy-MM-dd へ正規化
+  const normalizeDateForInput = (v?: string | null) => (v ? v.replace(/\//g, "-") : "");
+  
   const allSelect = (checked: boolean) => {
     setBreakdownSelection(prev => prev.map(() => checked));
   };
@@ -350,6 +355,10 @@ export default function Dashboard() {
             const parentPri = (createdTask?.priority as TaskInput["priority"]) || "NORMAL";
             setChildPriorities(new Array(resp.children.length).fill(parentPri as "LOW" | "NORMAL" | "HIGH"));
             setBulkPriority((parentPri as "LOW" | "NORMAL" | "HIGH"));
+            // 初期の期限日は親の期限日を継承（なければ空）
+            const parentDue = createdTask?.dueDate ?? "";
+            const parentDueDashed = normalizeDateForInput(parentDue);
+            setChildDueDates(new Array(resp.children.length).fill(parentDueDashed));
             // 既存の警告は一旦クリアして新しいプレビューに集中
             setBreakdownWarning(null);
             setShowBreakdownModal(true);
@@ -358,6 +367,7 @@ export default function Dashboard() {
             setBreakdownPreview([]);
             setBreakdownSelection([]);
             setChildPriorities([]);
+            setChildDueDates([]);
             setBulkPriority("NORMAL");
             setShowBreakdownModal(false);
             {
@@ -420,7 +430,7 @@ export default function Dashboard() {
           // 親の属性を継承（未設定なら既定値）
           priority: priorityForChild,
           status: statusForChild,
-          due_date: lastCreatedTask?.dueDate,
+          due_date: (childDueDates[idx] ?? normalizeDateForInput(lastCreatedTask?.dueDate ?? "") ?? "") || undefined,
         };
         console.debug("[Dashboard] childInput payload", childInput);
         await createTask(childInput);
@@ -435,6 +445,7 @@ export default function Dashboard() {
       setBreakdownPreview([]);
       setBreakdownSelection([]);
       setChildPriorities([]);
+  setChildDueDates([]);
       setBulkPriority("NORMAL");
     } catch (e) {
       console.error("子タスクの一括作成に失敗", e);
@@ -686,7 +697,7 @@ export default function Dashboard() {
                   {breakdownPreview.length === 0 ? (
                     <div className="text-muted">提案がありません</div>
                   ) : (
-                    <div className="vstack gap-2" style={{ maxHeight: '360px', overflowY: 'auto' }}>
+                    <div className="vstack gap-2" style={{ maxHeight: '400px', overflowY: 'auto' }}>
                       <div className="d-flex justify-content-between align-items-center gap-2">
                         <div className="d-flex align-items-center gap-2">
                           <label className="form-label mb-0">一括変更</label>
@@ -719,6 +730,9 @@ export default function Dashboard() {
                           <button className="btn btn-sm btn-outline-secondary" onClick={() => allSelect(false)}>全解除</button>
                         </div>
                       </div>
+                      <div className="text-muted" style={{ fontSize: '0.85rem' }}>
+                        親の期限日: <span className="fw-semibold">{lastCreatedTask?.dueDate ?? 'なし'}</span>
+                      </div>
                       {breakdownPreview.map((c, idx) => (
                         <div key={idx} className="p-2 border rounded d-flex align-items-start gap-2">
                           <input type="checkbox" className="form-check-input mt-1" checked={breakdownSelection[idx] ?? false} onChange={() => toggleSelection(idx)} />
@@ -726,24 +740,44 @@ export default function Dashboard() {
                             <div className="fw-bold">{c.title}</div>
                             {c.description && (<div className="text-muted" style={{ whiteSpace: 'pre-wrap' }}>{c.description}</div>)}
                           </div>
-                          <div className="d-flex align-items-center gap-2" style={{ minWidth: 160 }}>
-                            <label className="form-label mb-0" style={{ whiteSpace: 'nowrap' }}>優先度</label>
-                            <select
-                              className="form-select form-select-sm"
-                              value={childPriorities[idx] ?? ((lastCreatedTask?.priority as TaskInput["priority"]) || "NORMAL")}
-                              onChange={(e) => {
-                                const v = e.target.value as "LOW" | "NORMAL" | "HIGH";
-                                setChildPriorities(prev => {
-                                  const next = [...prev];
-                                  next[idx] = v;
-                                  return next;
-                                });
-                              }}
-                            >
-                              <option value="HIGH">高</option>
-                              <option value="NORMAL">中</option>
-                              <option value="LOW">低</option>
-                            </select>
+                          <div className="d-flex align-items-end gap-2 flex-column" style={{ minWidth: 160, width: '100%' }}>
+                            <div className="d-flex flex-column" style={{ width: 160 }}>
+                              <label className="form-label mb-1 fw-semibold text-start" style={{ whiteSpace: 'nowrap' }}>優先度</label>
+                              <select
+                                className="form-select form-select-sm"
+                                style={{ width: 160 }}
+                                value={childPriorities[idx] ?? ((lastCreatedTask?.priority as TaskInput["priority"]) || "NORMAL")}
+                                onChange={(e) => {
+                                  const v = e.target.value as "LOW" | "NORMAL" | "HIGH";
+                                  setChildPriorities(prev => {
+                                    const next = [...prev];
+                                    next[idx] = v;
+                                    return next;
+                                  });
+                                }}
+                              >
+                                <option value="HIGH">高</option>
+                                <option value="NORMAL">中</option>
+                                <option value="LOW">低</option>
+                              </select>
+                            </div>
+                            <div className="d-flex flex-column" style={{ width: 160 }}>
+                              <label className="form-label mb-1 fw-semibold text-start" style={{ whiteSpace: 'nowrap' }}>期限日</label>
+                              <input
+                                type="date"
+                                className="form-control form-control-sm"
+                                style={{ width: 160 }}
+                                value={normalizeDateForInput(childDueDates[idx] ?? (lastCreatedTask?.dueDate ?? ""))}
+                                onChange={(e) => {
+                                  const v = e.target.value || "";
+                                  setChildDueDates(prev => {
+                                    const next = [...prev];
+                                    next[idx] = v;
+                                    return next;
+                                  });
+                                }}
+                              />
+                            </div>
                           </div>
                         </div>
                       ))}
