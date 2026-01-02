@@ -315,13 +315,13 @@ export default function Dashboard() {
       setEditingTask(null);
       setLastCreatedTaskId(created?.id ?? null);
       setLastCreatedTask(created ?? null);
+      console.debug("lastCreatedTaskId", created?.id)
     } catch (error) {
       console.error("作成エラー:", error);
     }
 
-    // 新規作成後にAI細分化（チェックON時のみ）
-    // TaskCreateFormから渡されるフラグ（型: TaskInput に拡張プロパティとして存在）
-    if ((input as unknown as { ai_decompose?: boolean }).ai_decompose) {
+  // 新規作成後にAI細分化（チェックON時のみプレビューを開く）
+  if ((input as unknown as { ai_decompose?: boolean }).ai_decompose) {
       try {
         const prioForReq: "HIGH" | "NORMAL" | "LOW" | undefined =
           input.priority === "LOW" ? "LOW" :
@@ -333,7 +333,9 @@ export default function Dashboard() {
           dueDate: input.due_date,
           priority: prioForReq,
          };
+        console.debug("[Dashboard] breakdown request", req);
         const resp: TaskBreakdownResponse = await breakdownTask(req);
+        console.debug("[Dashboard] breakdown response children", resp.children?.length ?? 0, resp);
         // 警告があればフォーム上部に表示（ダッシュボードヘッダー直下）
         if (resp.warning && resp.warning.trim()) {
           setBreakdownWarning(resp.warning);
@@ -342,6 +344,8 @@ export default function Dashboard() {
         if (Array.isArray(resp.children) && resp.children.length > 0) {
           setBreakdownPreview(resp.children);
           setBreakdownSelection(new Array(resp.children.length).fill(true));
+          // 既存の警告は一旦クリアして新しいプレビューに集中
+          setBreakdownWarning(null);
           setShowBreakdownModal(true);
         } else {
           // 既存のwarningが空ならデフォルト文言を表示して親のみ作成を通知
@@ -355,7 +359,10 @@ export default function Dashboard() {
         }
       } catch (e) {
         console.error("AI細分化の呼び出しに失敗しました", e);
-        setBreakdownWarning("AI細分化の呼び出しに失敗しました。時間をおいて再試行してください。");
+        const message = (e as Error)?.message || "AI細分化の呼び出しに失敗しました。時間をおいて再試行してください。";
+        setBreakdownWarning(message);
+        // エラー時はモーダルを閉じて操作を解除
+        setShowBreakdownModal(false);
       }
     }
   };
@@ -367,13 +374,19 @@ export default function Dashboard() {
 
   // 選択した子タスクを一括作成
   const createSelectedChildren = async () => {
+    console.debug("[Dashboard] createSelectedChildren parent id used", lastCreatedTaskId)
     if (!lastCreatedTaskId) {
       setBreakdownWarning("親タスクの作成情報が見つかりません。もう一度お試しください。");
+      // 親未確定時はモーダルを閉じて操作を中断
+      setShowBreakdownModal(false);
       return;
     }
     const selected = breakdownPreview
       .map((c, idx) => ({ c, idx }))
       .filter(({ idx }) => breakdownSelection[idx]);
+    console.debug("[Dashboard] breakdownPreview", breakdownPreview);
+    console.debug("[Dashboard] breakdownSelection", breakdownSelection);
+    console.debug("[Dashboard] selected children count", selected.length);
     if (selected.length === 0) {
       setBreakdownWarning("作成対象の子タスクが選択されていません。");
       return;
@@ -385,11 +398,13 @@ export default function Dashboard() {
           title: c.title,
           description: c.description ?? "",
           parent_task_id: lastCreatedTaskId,
+          parentTaskId: lastCreatedTaskId as number,
           // 親の属性を継承（未設定なら既定値）
           priority: (lastCreatedTask?.priority ?? "medium") as TaskInput["priority"],
           status: (lastCreatedTask?.status ?? "todo") as TaskInput["status"],
           due_date: lastCreatedTask?.dueDate,
         };
+        console.debug("[Dashboard] childInput payload", childInput);
         await createTask(childInput);
       }
       // 再取得して画面反映
@@ -403,7 +418,11 @@ export default function Dashboard() {
       setBreakdownSelection([]);
     } catch (e) {
       console.error("子タスクの一括作成に失敗", e);
-      setBreakdownWarning("子タスクの一括作成に失敗しました。時間をおいて再試行してください。");
+      // サーバーからのメッセージ（例: 親タスクが見つかりませんでした）を優先表示
+      const message = (e as Error)?.message || "子タスクの一括作成に失敗しました。時間をおいて再試行してください。";
+      setBreakdownWarning(message);
+      // エラー時もモーダルを閉じられるようにする
+      setShowBreakdownModal(false);
     } finally {
       setCreatingChildren(false);
     }
@@ -647,7 +666,7 @@ export default function Dashboard() {
                   {breakdownPreview.length === 0 ? (
                     <div className="text-muted">提案がありません</div>
                   ) : (
-                    <div className="vstack gap-2">
+                    <div className="vstack gap-2" style={{ maxHeight: '360px', overflowY: 'auto' }}>
                       <div className="d-flex justify-content-end gap-2">
                         <button className="btn btn-sm btn-outline-secondary" onClick={() => allSelect(true)}>全選択</button>
                         <button className="btn btn-sm btn-outline-secondary" onClick={() => allSelect(false)}>全解除</button>

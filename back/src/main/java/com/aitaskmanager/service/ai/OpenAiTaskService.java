@@ -1,6 +1,7 @@
 package com.aitaskmanager.service.ai;
 
 import org.springframework.beans.factory.annotation.Value;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -20,12 +21,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * OpenAIを利用したタスク関連のサービスクラス
  */
 @Service
+@Slf4j
 public class OpenAiTaskService {
 
     @Value("${openai.enabled:false}")
     private boolean enabled;
 
-    @Value("${openai.apiKey:}")
+    @Value("${spring.ai.openai.api-key:}")
     private String apiKey;
 
     @Value("${openai.model:gpt-4o-mini}")
@@ -49,27 +51,49 @@ public class OpenAiTaskService {
      * @return 生成された子タスクのリスト
      */
     public List<SubTask> generateSubTasks(String title, String description, String dueDate, String priority) {
+        long startNs = System.nanoTime();
         List<SubTask> results = new ArrayList<>();
         String base = (description != null && !description.isBlank()) ? description : title;
-        if (base == null || base.isBlank()) {
+        if (base == null) base = "";
+
+        // 開始ログ（入力の長さと語数）
+        int words = base.trim().isEmpty() ? 0 : base.trim().split("\\s+").length;
+        log.info("[OpenAiTaskService] generateSubTasks start len={} words={} titleLen={} descLen={}", base.length(), words, (title != null ? title.length() : 0), (description != null ? description.length() : 0));
+
+        // 曖昧スキップ（プレビューでは空リスト返却）
+        int minChars = 20;
+        int minWords = 3;
+        if (base.trim().isEmpty() || (base.length() < minChars && words < minWords)) {
+            log.info("[OpenAiTaskService] skip due to ambiguous input (len<{} && words<{})", minChars, minWords);
+            log.info("[OpenAiTaskService] generateSubTasks end items=0 elapsedMs={}", (System.nanoTime() - startNs) / 1_000_000);
             return results;
         }
 
-        String prompt = "あなたはタスク分解のアシスタントです。以下の親タスクの説明から3件前後の子タスク案をJSONで返してください。\n" +
-                "親タイトル: " + safe(title) + "\n" +
-                "説明: " + safe(description) + "\n" +
-                (dueDate != null ? ("期日: " + dueDate + "\n") : "") +
-                (priority != null ? ("優先度: " + priority + "\n") : "") +
-                "出力は次の形式のみで、キーは英語にしてください: {\"children\":[{\"title\":\"...\",\"description\":\"...\"}]}";
+        String prompt = "あなたはタスク分解のアシスタントです。以下の親タスクの説明から、タスクが達成できるように細かい子タスク案を JSON で返してください（タスクが達成できるようにできるだけ細かくして返してください）。\n"
+            + "親タイトル: " + safe(title) + "\n"
+            + "説明: " + safe(description) + "\n"
+            + (dueDate != null ? ("期日: " + dueDate + "\n") : "")
+            + (priority != null ? ("優先度: " + priority + "\n") : "")
+            + "必須条件: タイトルと説明の値は必ず日本語で出力するようにしてください。\n"
+            + "出力形式は厳密に次のみ。キーは英語 (children/title/description)、値は日本語: {\"children\":[{\"title\":\"...\",\"description\":\"...\"}]}";
 
         try {
-            String body = mapper.createObjectNode()
-                    .put("model", model)
-                    .putArray("messages")
-                        .add(mapper.createObjectNode()
-                                .put("role", "user")
-                                .put("content", prompt))
-                    .toString();
+        // Chat Completions API に対して system + user の2メッセージ構成、JSON強制の response_format を指定
+        var rootBody = mapper.createObjectNode();
+        rootBody.put("model", model);
+        var messages = rootBody.putArray("messages");
+        messages.add(mapper.createObjectNode()
+            .put("role", "system")
+            .put("content", "You output strictly a single JSON object. All values must be in Japanese. Keys must be in English (children/title/description). No extra text."));
+        messages.add(mapper.createObjectNode()
+            .put("role", "user")
+            .put("content", prompt));
+        rootBody.put("temperature", 0);
+        // OpenAIの新仕様では JSON を強制するために response_format が有効（サポートモデル限定）
+        var responseFormat = mapper.createObjectNode();
+        responseFormat.put("type", "json_object");
+        rootBody.set("response_format", responseFormat);
+        String body = rootBody.toString();
 
             HttpRequest req = HttpRequest.newBuilder()
                     .uri(URI.create("https://api.openai.com/v1/chat/completions"))
@@ -95,14 +119,39 @@ public class OpenAiTaskService {
                                     results.add(new SubTask(ct, cd));
                                 }
                             }
+                            // 正規化して親説明/タイトルと同一のものを除外
+                            String normParentDesc = normalize(description);
+                            String normParentTitle = normalize(title);
+                            List<SubTask> filtered = new ArrayList<>();
+                            for (SubTask st : results) {
+                                String nt = normalize(st.title);
+                                String nd = normalize(st.description);
+                                boolean dupWithDesc = !normParentDesc.isEmpty() && (nt.equalsIgnoreCase(normParentDesc) || nd.equalsIgnoreCase(normParentDesc));
+                                boolean dupWithTitle = !normParentTitle.isEmpty() && (nt.equalsIgnoreCase(normParentTitle) || nd.equalsIgnoreCase(normParentTitle));
+                                if (!dupWithDesc && !dupWithTitle) {
+                                    filtered.add(st);
+                                }
+                            }
+                            results = filtered;
+                            // 最大件数の上限（大きめに許容）
+                            int maxItems = 50;
+                            if (results.size() > maxItems) {
+                                results = results.subList(0, maxItems);
+                            }
                         }
                     }
                 }
+            } else {
+                // ステータスとエラーメッセージをログに出す
+                log.warn("[OpenAiTaskService] OpenAI chat completion failed status={} body={}", resp.statusCode(), resp.body());
             }
         } catch (Exception e) {
             // 失敗時は空リストを返す
+            log.warn("[OpenAiTaskService] generateSubTasks failed: {}", e.toString());
+            log.info("[OpenAiTaskService] generateSubTasks end items=0 elapsedMs={}", (System.nanoTime() - startNs) / 1_000_000);
             return results;
         }
+        log.info("[OpenAiTaskService] generateSubTasks end items={} elapsedMs={}", results.size(), (System.nanoTime() - startNs) / 1_000_000);
         return results;
     }
 
@@ -129,6 +178,18 @@ public class OpenAiTaskService {
         } catch (Exception ignored) {
             return null;
         }
+    }
+
+    /**
+     * 重複判定のための簡易正規化
+     */
+    private String normalize(String s) {
+        if (s == null) return "";
+        String t = s.trim()
+                .replaceFirst("^[\\-\\*]\\s*", "")
+                .replaceFirst("^•\\s*", "")
+                .replaceAll("\\s+", " ");
+        return t.toUpperCase();
     }
 
     /**

@@ -28,6 +28,9 @@ import com.aitaskmanager.repository.model.Users;
 import com.aitaskmanager.util.TaskUtils;
 import com.aitaskmanager.util.LogUtil;
 import com.aitaskmanager.service.ai.OpenAiDecomposeService;
+import com.aitaskmanager.service.ai.OpenAiTaskService;
+import com.aitaskmanager.service.ai.OpenAiTaskService.SubTask;
+
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -52,8 +55,11 @@ public class TaskService {
     @Autowired
     private OpenAiDecomposeService openAiDecomposeService;
 
+    @Autowired
+    private OpenAiTaskService openAiTaskService;
+
     // OpenAI APIキーはapplication.propertiesから取得（環境変数依存を排除）
-    @Value("${openai.apiKey:}")
+    @Value("${spring.ai.openai.api-key:}")
     private String openaiApiKey;
     
     // 一時停止用のフラグ（課金回避のため当面OFFにできる）
@@ -80,6 +86,17 @@ public class TaskService {
     @Transactional(rollbackFor = Exception.class)
     public Tasks createTask(Integer userSid, TaskRequest request) {
         LogUtil.service(TaskService.class, "tasks.create", "userSid=" + userSid, "started");
+        // 受信ペイロードの要約ログ（原因特定用）
+        log.debug("[TaskService] createTask payload userSid={} title='{}' priority={} status={} due_date={} ai_decompose={} parent_task_id={} parentTaskId={}",
+            userSid,
+            request.getTitle(),
+            request.getPriority(),
+            request.getStatus(),
+            request.getDue_date(),
+            request.getAi_decompose(),
+            request.getParent_task_id(),
+            request.getParentTaskId()
+        );
         Tasks task = new Tasks();
         task.setUserSid(userSid);
         task.setTitle(TaskUtils.defaultString(request.getTitle(), ""));
@@ -89,40 +106,40 @@ public class TaskService {
         task.setDueDate(TaskUtils.toSqlDate(request.getDue_date()));
         // 手動の子タスク作成: 親IDを許容（snake/camel両対応）
         Integer reqParentId = request.getParent_task_id() != null ? request.getParent_task_id() : request.getParentTaskId();
+        log.debug("[TaskService] createTask parentId resolved={} userSid={}", reqParentId, userSid);
         if (reqParentId != null) {
             // 親の存在/権限を確認
             Tasks parent = taskMapper.selectByTaskSidAndUserSid(reqParentId, userSid);
             if (parent == null) {
+                log.info("[TaskService] createTask parent not found or unauthorized reqParentId={} userSid={}", reqParentId, userSid);
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "親タスクが見つかりません");
             }
+            log.debug("[TaskService] createTask parent found parentSid={} userSid={}", parent.getTaskSid(), userSid);
             // 深さチェック（親が深さ4なら新規子は作れない）
             if (isMaxDepthReached(reqParentId, userSid)) {
+                log.info("[TaskService] createTask reject due to depth limit (>=4) reqParentId={} userSid={}", reqParentId, userSid);
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "階層は最大4までです");
             }
             task.setParentTaskSid(reqParentId);
         }
-        taskMapper.insert(task); // 親タスク挿入でID確定
+        try {
+            taskMapper.insert(task); // useGeneratedKeysでID確定
+        } catch (Exception ex) {
+            // 予期せぬDB例外の詳細（入力値込み）を記録して再スロー
+            log.error("[TaskService] createTask insert failed userSid={} title='{}' priority={} status={} due_date={} parentId={}", 
+                userSid, task.getTitle(), task.getPriority(), task.getStatus(), request.getDue_date(), reqParentId, ex);
+            throw ex;
+        }
         log.debug("[TaskService] createTask parent inserted taskSid={} parentTaskSid={} (should be null for root)", task.getTaskSid(), task.getParentTaskSid());
 
+        // 仕様変更: 作成時（POST /api/tasks）に ai_decompose=true でも子タスクの自動生成は行わない。
+        // 子タスクの生成は『プレビュー→選択保存』フローに統一するため、ここでは親のみ作成して返す。
         if (Boolean.TRUE.equals(request.getAi_decompose())) {
-            // 作成時にAI細分化が要求された場合はAIモードで子生成を実施
-            // フラグがOFFならAI分解をスキップ（エラーにせず通常作成を継続）
-            if (!openaiEnabled) {
-                log.info("[TaskService] AI decomposition skipped due to openai.enabled=false. parentSid={} mode={} ", task.getTaskSid(), "ai");
-            } else {
-                // 親タスクは既に挿入済み。クォータ不足や未設定などの理由で例外が発生しても
-                // 親の作成は維持したいので、ここでは例外を握りつぶしてログのみ残す。
-                try {
-                    generateChildTasks(task.getTaskSid(), userSid, request, "ai");
-                } catch (ResponseStatusException ex) {
-                    log.warn("[TaskService] AI decomposition skipped due to error. parentSid={} status={} message={}", task.getTaskSid(), ex.getStatusCode(), ex.getReason());
-                } catch (Exception ex) {
-                    log.error("[TaskService] AI decomposition unexpected error. parentSid={}", task.getTaskSid(), ex);
-                }
-            }
+            log.info("[TaskService] ai_decompose=true received on create, but auto child generation is disabled by spec. parentSid={} userSid={}", task.getTaskSid(), userSid);
         }
-        LogUtil.service(TaskService.class, "tasks.create", "taskSid=" + task.getTaskSid() + " userSid=" + userSid, "completed");
-        return task;
+    Tasks result = taskMapper.selectByTaskSidAndUserSid(task.getTaskSid(), userSid);
+    LogUtil.service(TaskService.class, "tasks.create", "taskSid=" + result.getTaskSid() + " userSid=" + userSid, "completed");
+    return result;
     }
 
     /**
@@ -299,8 +316,25 @@ public class TaskService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "説明が空のため細分化できません");
         }
 
-        // OpenAIで分解
-        List<String> items = openAiDecomposeService.decompose(baseDesc);
+        // OpenAIで分解（プレビューと同一ロジックを使用）
+        List<SubTask> subs = openAiTaskService.generateSubTasks(baseTitle, baseDesc, request.getDue_date(), TaskUtils.normalizePriority(request.getPriority()));
+        List<String> items = (subs != null) ? subs.stream()
+            .map(st -> {
+                // 保存時はタイトルは親ベースで連番付与、説明はサブタスク説明を採用
+                String desc = (st.description != null && !st.description.isBlank()) ? st.description : st.title;
+                return desc != null ? desc.trim() : "";
+            })
+            .filter(s -> !s.isBlank())
+            .toList() : java.util.List.of();
+        // 親説明と同一の行（トリム/全角半角差異をある程度吸収）を除外して重複作成を防止
+        if (items != null) {
+            String normalizedParent = normalizeText(baseDesc);
+            items = items.stream()
+                .map(this::normalizeText)
+                .filter(s -> !s.equalsIgnoreCase(normalizedParent))
+                .map(s -> s) // normalizedで比較後、元の文字列ではなく正規化済みを採用
+                .toList();
+        }
         if (items == null || items.isEmpty()) {
             // 親タスクは作成済みのため、例外にせず子生成をスキップして継続
             log.info("[TaskService] ai_decompose yielded no items. parentSid={} descLength={}", parentTaskSid, baseDesc.length());
@@ -450,7 +484,7 @@ public class TaskService {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         Integer planId = AuthUtils.getPlanId(auth);
         if (planId == null) {
-            String principalUserId = (auth != null) ? com.aitaskmanager.security.AuthUtils.getUserId(auth) : null;
+              String principalUserId = (auth != null) ? com.aitaskmanager.security.AuthUtils.getUserId(auth) : null;
             Users u = (principalUserId != null) ? userMapper.selectByUserId(principalUserId) : null;
             if (u == null) {
                 throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "ユーザーが存在しません");
@@ -458,7 +492,7 @@ public class TaskService {
             planId = u.getPlanId();
         }
 
-    // デフォルトは無料: 0回（4 は無制限）
+        // デフォルトは無料: 0回（ai_quota が 4 のとき無制限）
         Integer aiQuota = 0;
         if (planId != null) {
             SubscriptionPlans plan = subscriptionPlansMapper.selectByPrimaryKey(planId);
@@ -471,18 +505,18 @@ public class TaskService {
         Integer bonus = customAiUsageMapper.selectBonusCount(userSid, now.getYear(), now.getMonthValue());
         if (bonus == null) bonus = 0;
 
-        // 無制限プラン（aiQuota==4）は常に許可（API設定は別途チェック）
-        if (aiQuota != null && aiQuota.intValue() == 4) {
-            // used は内部計測のみ、制限なし
-        } else {
-            int effectiveQuota = aiQuota + bonus; // Free(0)でもボーナスがあれば許可
+        // 無制限プラン（ai_quota が null または 4）は常に許可（API設定は別途チェック）
+        boolean unlimited = (aiQuota == null) || (aiQuota.intValue() == 4);
+        if (!unlimited) {
+            int aiQuotaValue = aiQuota != null ? aiQuota.intValue() : 0; // null 安全
+            int effectiveQuota = aiQuotaValue + bonus; // Free(0)でもボーナスがあれば許可
             if (effectiveQuota <= 0) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "AIの利用可能回数がありません（プラン残＋ボーナス）");
             }
             if (used >= effectiveQuota) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "今月のAI利用回数上限に達しました（残り0）");
             }
-        }
+        } // unlimited の場合は制限なし（used は内部計測のみ）
 
         // APIキー存在確認（OpenAI連携が有効であること）
         // application.propertiesのopenai.apiKeyを使用
@@ -500,5 +534,24 @@ public class TaskService {
     private void incrementAiUsage(Integer userSid) {
         LocalDate now = LocalDate.now(ZoneId.of("Asia/Tokyo"));
         customAiUsageMapper.upsertIncrement(userSid, now.getYear(), now.getMonthValue());
+    }
+
+    /**
+     * 簡易正規化（重複判定用）
+     * - 前後空白・連続空白の縮約
+     * - 箇条書きの記号削除（-, *, •）
+     * - 全角英数を半角に（Java標準では簡易対応: toUpperCaseによるケース統一のみ）
+     * 
+     * @param s 入力文字列
+     * @return 正規化済み文字列
+     */
+    private String normalizeText(String s) {
+        if (s == null) return "";
+        String t = s.trim()
+            .replaceFirst("^[\\-\\*]\\s*", "")
+            .replaceFirst("^•\\s*", "")
+            .replaceAll("\\s+", " ");
+        // ケース統一（英字のみ）。より高度な全角半角統一は必要なら追加する
+        return t.toUpperCase();
     }
 }

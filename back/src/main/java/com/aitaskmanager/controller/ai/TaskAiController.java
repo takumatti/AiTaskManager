@@ -1,16 +1,10 @@
 package com.aitaskmanager.controller.ai;
 
 import com.aitaskmanager.service.ai.OpenAiTaskService;
-import com.aitaskmanager.repository.customMapper.CustomAiUsageMapper;
-import com.aitaskmanager.repository.customMapper.UserMapper;
 import com.aitaskmanager.repository.dto.ai.TaskBreakdownDTO;
-import com.aitaskmanager.repository.model.Users;
-import com.aitaskmanager.security.AuthUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,12 +22,6 @@ public class TaskAiController {
 
     @Autowired
     private OpenAiTaskService openAiTaskService;
-
-    @Autowired
-    private CustomAiUsageMapper customAiUsageMapper;
-
-    @Autowired
-    private UserMapper userMapper;
 
     // 丁寧版の警告文
     private static final String AMBIGUOUS_WARNING = "入力された説明が抽象的なため、AIで子タスクを自動生成できませんでした。親タスクのみ作成しています。以下を追記すると分解が成功しやすくなります。\n- 目的（なぜやるのか）\n- 具体的な手順（何を、どう進めるのか）\n- 期待する成果物（何が得られれば完了か）\n- 制約（期限・条件・依存関係など）";
@@ -88,16 +76,6 @@ public class TaskAiController {
             resp.warning = "AIによる子タスク提案がありませんでした。親タスクのみ作成しています。説明をもう少し具体的にすると分解が成功しやすくなります。";
         }
         
-        // 成功時（子提案が1件以上）に当月のAI使用回数を+1
-        if (!resp.children.isEmpty()) {
-            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            String userId = (auth != null) ? AuthUtils.getUserId(auth) : null;
-            Users user = (userId != null) ? userMapper.selectByUserId(userId) : null;
-            if (user != null && user.getUserSid() != null) {
-                java.time.LocalDate now = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Tokyo"));
-                customAiUsageMapper.upsertIncrement(Math.toIntExact(user.getUserSid()), now.getYear(), now.getMonthValue());
-            }
-        }
         return ResponseEntity.ok(resp);
     }
 }

@@ -49,7 +49,7 @@ public class AiQuotaController {
     @Autowired
     private SubscriptionsCustomMapper subscriptionsCustomMapper;
 
-    @Value("${openai.apiKey:}")
+    @Value("${spring.ai.openai.api-key:}")
     private String openaiApiKey;
 
     /**

@@ -89,10 +89,28 @@ public class TaskController {
      * @return 作成されたタスク
      */
     @PostMapping
-    public Tasks createTask(@RequestBody TaskRequest request, Authentication authentication) {
+    public TaskResponse createTask(@RequestBody TaskRequest request, Authentication authentication) {
         Integer userSid = RequestGuard.requireUserSid();
         LogUtil.controller(TaskController.class, "tasks.create", userSid, authentication != null ? com.aitaskmanager.security.AuthUtils.getUserId(authentication) : null, "invoked");
-        return taskService.createTask(userSid, request);
+        Tasks t = taskService.createTask(userSid, request);
+        // すべて東京タイムゾーンで返す（GETと同様のフォーマット）
+        SimpleDateFormat dueSdf = new SimpleDateFormat("yyyy/MM/dd");
+        SimpleDateFormat dtSdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
+        dueSdf.setTimeZone(TimeZone.getTimeZone("Asia/Tokyo"));
+        dtSdf.setTimeZone(TimeZone.getTimeZone("Asia/Tokyo"));
+
+        TaskResponse dto = new TaskResponse();
+        dto.setId(t.getTaskSid());
+        dto.setUserId(t.getUserSid());
+        dto.setParentTaskId(t.getParentTaskSid());
+        dto.setTitle(t.getTitle());
+        dto.setDescription(t.getDescription());
+        dto.setDueDate(t.getDueDate() != null ? dueSdf.format(t.getDueDate()) : null);
+        dto.setPriority(t.getPriority());
+        dto.setStatus(t.getStatus());
+        dto.setCreatedAt(dtSdf.format(t.getCreatedAt()));
+        dto.setUpdatedAt(dtSdf.format(t.getUpdatedAt()));
+        return dto;
     }
 
     /**
@@ -104,11 +122,28 @@ public class TaskController {
      * @return 更新されたタスク
      */
     @PutMapping("/{id}")
-    public ResponseEntity<Tasks> updateTask(@PathVariable("id") int id, @RequestBody TaskRequest request, Authentication authentication) {
+    public ResponseEntity<TaskResponse> updateTask(@PathVariable("id") int id, @RequestBody TaskRequest request, Authentication authentication) {
         Integer userSid = RequestGuard.requireUserSid();
         LogUtil.controller(TaskController.class, "tasks.update id=" + id, userSid, authentication != null ? com.aitaskmanager.security.AuthUtils.getUserId(authentication) : null, "invoked");
-        Tasks updated = taskService.updateTask(id, request, userSid);
-        return ResponseEntity.ok(updated);
+        Tasks t = taskService.updateTask(id, request, userSid);
+        // DTOへマッピング（GETと同様のフォーマット）
+        SimpleDateFormat dueSdf = new SimpleDateFormat("yyyy/MM/dd");
+        SimpleDateFormat dtSdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
+        dueSdf.setTimeZone(TimeZone.getTimeZone("Asia/Tokyo"));
+        dtSdf.setTimeZone(TimeZone.getTimeZone("Asia/Tokyo"));
+
+        TaskResponse dto = new TaskResponse();
+        dto.setId(t.getTaskSid());
+        dto.setUserId(t.getUserSid());
+        dto.setParentTaskId(t.getParentTaskSid());
+        dto.setTitle(t.getTitle());
+        dto.setDescription(t.getDescription());
+        dto.setDueDate(t.getDueDate() != null ? dueSdf.format(t.getDueDate()) : null);
+        dto.setPriority(t.getPriority());
+        dto.setStatus(t.getStatus());
+        dto.setCreatedAt(dtSdf.format(t.getCreatedAt()));
+        dto.setUpdatedAt(dtSdf.format(t.getUpdatedAt()));
+        return ResponseEntity.ok(dto);
     }
 
     /**
