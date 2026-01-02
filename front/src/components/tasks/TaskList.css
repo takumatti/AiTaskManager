@@ -60,6 +60,39 @@
   width: 100%;
   box-sizing: border-box;
 }
+/* ステータス別の枠線/背景色アクセント */
+/* 画像準拠の配色: 未着手=青, 進行中=黄, 完了=緑, 期限超過=赤系枠 */
+.task-tree-item.status-todo {
+  border-color: #7aa3ff; /* 淡い青枠 */
+  background: #f2f6ff;  /* ごく薄い青背景 */
+}
+.task-tree-item.status-doing {
+  border-color: #ffd35a; /* 黄枠 */
+  background: #fff9e6;  /* ごく薄い黄背景 */
+}
+.task-tree-item.status-done {
+  border-color: #2e7d32; /* 緑濃いめの枠 */
+  background: #e9f5ea;  /* 薄い緑背景 */
+}
+.task-tree-item.status-waiting {
+  border-color: #cfd8dc; /* グレー系 */
+  background: #fafbfc;
+}
+.task-tree-item.status-overdue {
+  border-color: #d9534f; /* 赤系の枠（期限超過） */
+  background: #fff1f0;  /* ごく薄い赤背景 */
+}
+/* 優先度別の左ボーダーアクセント */
+/* 優先度（画像準拠: 高=オレンジ、低=紫） */
+.task-tree-item.priority-high {
+  border-left: 3px solid #ff9800; /* オレンジ */
+}
+.task-tree-item.priority-normal {
+  border-left: 3px solid #0d6efd; /* 青（据え置き） */
+}
+.task-tree-item.priority-low {
+  border-left: 3px solid #7e57c2; /* 紫 */
+}
 .task-tree-inner {
   /* インナーで左右余白を一元管理し、展開時も幅を不変に */
   width: 100%;
@@ -216,7 +249,8 @@
   gap: 6px;
 }
 /* 階層の視認性: 子行の背景をごく薄く */
-.task-tree-children > .task-tree-item {
+/* 階層の視認性: 子行の背景をごく薄く（ただし状態別背景がある場合は上書きしない） */
+.task-tree-children > .task-tree-item:not(.status-done):not(.status-doing):not(.status-waiting) {
   background: #fbfcfe; /* ほんの少しだけ薄く */
 }
 

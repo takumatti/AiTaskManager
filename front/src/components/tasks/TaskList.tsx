@@ -88,8 +88,29 @@ export const TaskList = ({
     const indentStyle = { marginLeft: depth * 16 };
     const canDecompose = depth < 3; // 0:root,1,2,3(=第4階層) → 第4階層では不可
     const canCreateChild = canDecompose; // 子追加も細分化と同じ活性条件
+    // 状態別クラス（枠線色/背景色の差別化用）
+    const statusClass = node.status ? `status-${String(node.status).toLowerCase()}` : "";
+    const priorityClass = node.priority ? `priority-${String(node.priority).toLowerCase()}` : "";
+    // 期限超過（未完了 かつ dueDate が今日より過去）
+    let overdueClass = "";
+    try {
+      const isDone = String(node.status).toUpperCase() === "DONE";
+      if (!isDone && node.dueDate) {
+        const due = new Date(node.dueDate);
+        const today = new Date();
+        const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        if (startOfDay(due).getTime() < startOfDay(today).getTime()) {
+          overdueClass = "overdue";
+        }
+      }
+    } catch {
+      // noop: overdue判定での日付パース失敗は無視
+    }
     return (
-      <div key={node.id} className={`task-tree-item ${highlightIds.has(node.id) ? "new-child-highlight" : ""}`}>
+      <div
+        key={node.id}
+        className={`task-tree-item ${statusClass} ${priorityClass} ${overdueClass ? `status-${overdueClass}` : ""} ${highlightIds.has(node.id) ? "new-child-highlight" : ""}`}
+      >
         <div className="task-tree-inner">
           <div className="task-tree-row">
           <div className="task-tree-main" style={indentStyle}>
