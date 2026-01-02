@@ -10,6 +10,7 @@ type Props = {
   onClose: () => void;
   initialDueDate?: string; // yyyy-MM-dd 形式（新規作成時の初期期限日）
   parentIdForCreate?: number; // 新規作成時に親IDを指定（子タスク追加）
+  hideAiDecompose?: boolean; // 階層制限によりAI細分化チェックを隠す
 };
 
 // タスク作成・編集フォームコンポーネント
@@ -20,6 +21,7 @@ export const TaskCreateForm = ({
   onClose,
   initialDueDate,
   parentIdForCreate,
+  hideAiDecompose,
 }: Props) => {
   const isEdit = !!editingTask;
   // モーダル表示中は背景スクロールを禁止
@@ -101,7 +103,9 @@ export const TaskCreateForm = ({
   });
   const [dueError, setDueError] = useState<string | null>(null);
   // 新規作成モードのみ、AI細分化チェックを提供（編集モードでは提供しない）
-  const [aiDecompose, setAiDecompose] = useState<boolean>(false);
+  const [aiDecomposeRaw, setAiDecomposeRaw] = useState<boolean>(false);
+  const aiDecompose = !isEdit && hideAiDecompose ? false : aiDecomposeRaw;
+
 
   // フォーム送信ハンドラ
   const handleSubmit = (e: React.FormEvent) => {
@@ -228,18 +232,18 @@ export const TaskCreateForm = ({
             )}
           </div>
 
-          {/* 新規作成時のみAI細分化を提供（編集では非表示） */}
-          {!isEdit && (
+          {/* 新規作成時のみAI細分化を提供（編集では非表示）。さらにhideAiDecompose指定時は非表示 */}
+          {!isEdit && !hideAiDecompose && (
             <div className="form-group form-check" style={{ marginTop: 8 }}>
               <input
                 id="aiDecompose"
                 name="aiDecompose"
                 type="checkbox"
                 className="form-check-input checkbox-small"
-                checked={aiDecompose}
+                checked={aiDecomposeRaw}
                 onChange={(e) => {
                   const checked = e.target.checked;
-                  setAiDecompose(checked);
+                  setAiDecomposeRaw(checked);
                   if (!checked) setDescError(null);
                 }}
               />

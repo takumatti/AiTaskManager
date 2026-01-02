@@ -69,6 +69,7 @@ export default function Dashboard() {
   const [initialDueDateForCreate, setInitialDueDateForCreate] = useState<string | undefined>(undefined);
   // 手動子作成用の親ID
   const [parentIdForCreate, setParentIdForCreate] = useState<number | undefined>(undefined);
+  const [hideAiDecomposeOnCreate, setHideAiDecomposeOnCreate] = useState<boolean>(false);
   // 表示モード(list | calendar)
   const [view, setView] = useState<"list" | "calendar">("list");
   // カレンダー用の月（1日を基準）
@@ -648,10 +649,12 @@ export default function Dashboard() {
               tasks={filteredTasks}
               onEdit={handleEdit}
               onDelete={handleDelete}
-              onCreateChild={(parentId: number) => {
+              onCreateChild={(parentId: number, depth: number) => {
                 // 子追加: 親IDをセットして新規作成フォームを開く
                 setEditingTask(null);
                 setParentIdForCreate(parentId);
+                // ユーザー認識の階層（親=1）に合わせ、3階層目ではAI細分化を非表示
+                setHideAiDecomposeOnCreate(depth >= 2);
                 setInitialDueDateForCreate(undefined);
                 setShowForm(true);
               }}
@@ -681,6 +684,8 @@ export default function Dashboard() {
             onUpdated={editingTask ? handleUpdate : undefined}
             initialDueDate={initialDueDateForCreate}
             parentIdForCreate={parentIdForCreate}
+            // 3階層目の子追加ではAI細分化チェックを非表示
+            hideAiDecompose={hideAiDecomposeOnCreate}
             onClose={() => { setShowForm(false); setEditingTask(null); setInitialDueDateForCreate(undefined); setParentIdForCreate(undefined); }}
           />
         )}

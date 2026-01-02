@@ -14,7 +14,7 @@ export const TaskList = ({
   tasks: Task[];
   onDelete: (id: number) => void;
   onEdit: (task: Task) => void;
-  onCreateChild?: (parentId: number) => void;
+  onCreateChild?: (parentId: number, depth: number) => void;
 }) => {
   const [tree, setTree] = useState<TaskTreeNode[] | null>(null);
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
@@ -87,7 +87,7 @@ export const TaskList = ({
     const isExpanded = expanded[node.id];
     const indentStyle = { marginLeft: depth * 16 };
     const canDecompose = depth < 3; // 0:root,1,2,3(=第4階層) → 第4階層では不可
-    const canCreateChild = canDecompose; // 子追加も細分化と同じ活性条件
+  const canCreateChild = canDecompose; // 子追加も細分化と同じ活性条件
     // 状態別クラス（枠線色/背景色の差別化用）
     const statusClass = node.status ? `status-${String(node.status).toLowerCase()}` : "";
     const priorityClass = node.priority ? `priority-${String(node.priority).toLowerCase()}` : "";
@@ -139,7 +139,7 @@ export const TaskList = ({
             <button
               className="add-child-btn"
               title={canCreateChild ? "このタスクの子タスクを手動で追加" : "階層は最大4までです"}
-              onClick={() => canCreateChild && onCreateChild && onCreateChild(node.id)}
+              onClick={() => canCreateChild && onCreateChild && onCreateChild(node.id, depth)}
               disabled={!canCreateChild}
             >子追加</button>
             <button className="delete-btn" onClick={() => handleDeleteWithConfirm(node)}>削除</button>
