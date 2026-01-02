@@ -137,22 +137,34 @@ public class BillingController {
             // 2) 現在のACTIVE契約があるか確認（最新）
             Integer activePlanSid = subscriptionsCustomMapper.selectActivePlanSid(userSid);
 
-            // 3) 未消化分をボーナスへロール（Unlimitedは対象外）
+            // 3) 未消化分をボーナスへロール
             if (activePlanSid != null) {
                 SubscriptionPlans plan = subscriptionPlansMapper.selectByPrimaryKey(activePlanSid);
                 Integer aiQuota = plan != null ? plan.getAiQuota() : null;
                 boolean isUnlimited = aiQuota == null || (aiQuota != null && aiQuota == 4);
+                // 当月の使用/ボーナスを取得（Unlimited/有料いずれも参照）
+                java.time.LocalDate today = java.time.LocalDate.now();
+                int year = today.getYear();
+                int month = today.getMonthValue();
+                Integer used = customAiUsageMapper.selectUsedCount(userSid, year, month);
+                int usedCount = used != null ? used : 0;
+                // 既存ボーナスはUnlimited→Free の分岐では利用しない（FREE_BASELINEを常に付与する方針）
+
                 if (!isUnlimited) {
-                    // 当月の使用/ボーナスを取得
-                    java.time.LocalDate today = java.time.LocalDate.now();
-                    int year = today.getYear();
-                    int month = today.getMonthValue();
-                    Integer used = customAiUsageMapper.selectUsedCount(userSid, year, month);
-                    int usedCount = used != null ? used : 0;
+                    // 有料（上限あり）→ Free: 未消化分をボーナスへ加算
                     int quota = aiQuota != null ? aiQuota : 0;
                     int remainingPaid = Math.max(0, quota - usedCount);
                     if (remainingPaid > 0) {
                         customAiUsageMapper.upsertAddBonus(userSid, year, month, remainingPaid);
+                    }
+                } else {
+                    // Unlimited → Free: Free分の基準 450 を「ボーナス」として付与する（既存クレジットに上乗せ）
+                    // これにより remaining = (ai_quota[0] + bonus[既存+450]) - used = (既存クレジット + 450) - used
+                    final int FREE_BASELINE = 450;
+                    // 二重実行防止: 本APIはアクティブ契約がある時のみこの分岐に入るため、通常は1回のみ。安全側で必要最小加算を行う。
+                    int delta = Math.max(0, FREE_BASELINE);
+                    if (delta > 0) {
+                        customAiUsageMapper.upsertAddBonus(userSid, year, month, delta);
                     }
                 }
                 // ACTIVE契約はCANCELLEDへ（当月以降は使わない）
@@ -160,7 +172,7 @@ public class BillingController {
             }
 
             // 4) users.plan_id を Free に更新
-            userMapper.updatePlanId(userId, planId);
+            userMapper.updatePlanIdBySid(userSid, planId);
 
             return ResponseEntity.ok().body(new MessageResponse("free-changed"));
         } catch (Exception e) {

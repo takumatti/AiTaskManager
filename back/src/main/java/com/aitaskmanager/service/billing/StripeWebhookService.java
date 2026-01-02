@@ -73,14 +73,11 @@ public class StripeWebhookService {
         System.out.println("[StripeWebhookService] inserting subscription userSid=" + userSid + ", planSid=" + planSid + ", isUnlimited=" + isUnlimited + ", expiresAt=" + expiresAt);
         subscriptionsMapper.insertSubscription(userSid, planSid, expiresAt);
         
-        // ユーザテーブルの plan_id を更新
+        // ユーザテーブルの plan_id を更新（SIDベースで確実に更新）
         try {
-            String userIdFromMetadata = session != null && session.getMetadata() != null ? session.getMetadata().get("userId") : null;
-            if (userIdFromMetadata != null && !userIdFromMetadata.isBlank()) {
-                userMapper.updatePlanId(userIdFromMetadata, planSid);
-            }
-        } catch (Exception ignore) {
-            // 失敗時はログのみ（将来的にSIDベース更新メソッドに切替）
+            userMapper.updatePlanIdBySid(userSid, planSid);
+        } catch (Exception e) {
+            System.err.println("[StripeWebhookService] updatePlanIdBySid failed: " + e.getMessage());
         }
         
         // 当月のai_usage行を初期化（存在しない場合は作成）。ボーナス0でUPSERTを使って行を用意。

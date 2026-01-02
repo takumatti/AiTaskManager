@@ -43,13 +43,14 @@ public interface UserMapper {
      */
     void insertUser(Users user);
 
+
     /**
-     * ユーザーのサブスクリプションプランを更新する
-     * 
-     * @param userId ユーザID
+     * ユーザーSIDでサブスクリプションプランを更新する
+     *
+     * @param userSid ユーザーSID
      * @param planId プランID
      */
-    void updatePlanId(@Param("userId") String userId,
-                      @Param("planId") Integer planId);
+    int updatePlanIdBySid(@Param("userSid") Integer userSid,
+                          @Param("planId") Integer planId);
 
 }

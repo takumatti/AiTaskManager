@@ -31,10 +31,11 @@
      VALUES (#{userId}, #{username}, #{email}, #{password}, #{role}, #{planId}, #{isActive})
   </insert>
 
-  <update id="updatePlanId">
+
+  <update id="updatePlanIdBySid">
     UPDATE users
     SET plan_id = #{planId},
         updated_at = now()
-    WHERE user_id = #{userId}
+    WHERE user_sid = #{userSid}
   </update>
 </mapper>
