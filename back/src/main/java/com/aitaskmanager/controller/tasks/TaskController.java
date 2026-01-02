@@ -25,6 +25,8 @@ import com.aitaskmanager.service.tasks.TaskService;
 import com.aitaskmanager.util.LogUtil;
 import com.aitaskmanager.util.RequestGuard;
 
+import jakarta.validation.Valid;
+
 /**
  * タスクに関連するAPIエンドポイントを提供するコントローラー
  */
@@ -89,7 +91,7 @@ public class TaskController {
      * @return 作成されたタスク
      */
     @PostMapping
-    public TaskResponse createTask(@RequestBody TaskRequest request, Authentication authentication) {
+    public TaskResponse createTask(@Valid @RequestBody TaskRequest request, Authentication authentication) {
         Integer userSid = RequestGuard.requireUserSid();
         LogUtil.controller(TaskController.class, "tasks.create", userSid, authentication != null ? com.aitaskmanager.security.AuthUtils.getUserId(authentication) : null, "invoked");
         Tasks t = taskService.createTask(userSid, request);
@@ -122,7 +124,7 @@ public class TaskController {
      * @return 更新されたタスク
      */
     @PutMapping("/{id}")
-    public ResponseEntity<TaskResponse> updateTask(@PathVariable("id") int id, @RequestBody TaskRequest request, Authentication authentication) {
+    public ResponseEntity<TaskResponse> updateTask(@PathVariable("id") int id, @Valid @RequestBody TaskRequest request, Authentication authentication) {
         Integer userSid = RequestGuard.requireUserSid();
         LogUtil.controller(TaskController.class, "tasks.update id=" + id, userSid, authentication != null ? com.aitaskmanager.security.AuthUtils.getUserId(authentication) : null, "invoked");
         Tasks t = taskService.updateTask(id, request, userSid);

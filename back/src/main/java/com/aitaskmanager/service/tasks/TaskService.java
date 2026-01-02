@@ -97,13 +97,19 @@ public class TaskService {
             request.getParent_task_id(),
             request.getParentTaskId()
         );
+        String reqTitle = TaskUtils.defaultString(request.getTitle(), "").trim();
         Tasks task = new Tasks();
         task.setUserSid(userSid);
-        task.setTitle(TaskUtils.defaultString(request.getTitle(), ""));
+        task.setTitle(reqTitle);
         task.setDescription(TaskUtils.defaultString(request.getDescription(), ""));
         task.setPriority(TaskUtils.normalizePriority(request.getPriority()));
         task.setStatus(TaskUtils.normalizeStatus(request.getStatus()));
-        task.setDueDate(TaskUtils.toSqlDate(request.getDue_date()));
+        // 期限日: 任意だが、入力がある場合は存在日付チェック（例: 2026-02-30 は不可）
+        java.sql.Date dueSql = TaskUtils.toSqlDate(request.getDue_date());
+        if (request.getDue_date() != null && !request.getDue_date().isBlank() && dueSql == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "存在しない日付です");
+        }
+        task.setDueDate(dueSql);
         // 手動の子タスク作成: 親IDを許容（snake/camel両対応）
         Integer reqParentId = request.getParent_task_id() != null ? request.getParent_task_id() : request.getParentTaskId();
         log.debug("[TaskService] createTask parentId resolved={} userSid={}", reqParentId, userSid);
@@ -135,10 +141,10 @@ public class TaskService {
         // 仕様変更: 作成時（POST /api/tasks）に ai_decompose=true でも子タスクの自動生成は行わない。
         // 子タスクの生成は『プレビュー→選択保存』フローに統一するため、ここでは親のみ作成して返す。
         if (Boolean.TRUE.equals(request.getAi_decompose())) {
-            log.info("[TaskService] ai_decompose=true received on create, but auto child generation is disabled by spec. parentSid={} userSid={}", task.getTaskSid(), userSid);
+            log.info("[TaskService] ai_decompose=true on create: 自動生成は行いません（プレビュー→選択保存で実施） parentSid={} userSid={}", task.getTaskSid(), userSid);
         }
-    Tasks result = taskMapper.selectByTaskSidAndUserSid(task.getTaskSid(), userSid);
-    LogUtil.service(TaskService.class, "tasks.create", "taskSid=" + result.getTaskSid() + " userSid=" + userSid, "completed");
+        Tasks result = taskMapper.selectByTaskSidAndUserSid(task.getTaskSid(), userSid);
+        LogUtil.service(TaskService.class, "tasks.create", "taskSid=" + result.getTaskSid() + " userSid=" + userSid, "completed");
     return result;
     }
 
@@ -158,15 +164,20 @@ public class TaskService {
         if (existing == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "更新対象のタスクが存在しません");
         }
+        String reqTitleUpdate = TaskUtils.defaultString(request.getTitle(), "").trim();
 
         Tasks task = new Tasks();
         task.setTaskSid(taskSid);
         task.setUserSid(userSid);
-        task.setTitle(TaskUtils.defaultString(request.getTitle(), ""));
+        task.setTitle(reqTitleUpdate);
         task.setDescription(TaskUtils.defaultString(request.getDescription(), ""));
         task.setPriority(TaskUtils.normalizePriority(request.getPriority()));
         task.setStatus(TaskUtils.normalizeStatus(request.getStatus()));
-        task.setDueDate(TaskUtils.toSqlDate(request.getDue_date()));
+        java.sql.Date dueSqlUpdate = TaskUtils.toSqlDate(request.getDue_date());
+        if (request.getDue_date() != null && !request.getDue_date().isBlank() && dueSqlUpdate == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "存在しない日付です");
+        }
+        task.setDueDate(dueSqlUpdate);
         task.setParentTaskSid(existing.getParentTaskSid());
 
         int update = taskMapper.update(task);
@@ -177,6 +188,7 @@ public class TaskService {
 
         // 更新時にもAI細分化要求がある場合、当該タスクを親として子タスクを生成（暫定ダミー）
         if (Boolean.TRUE.equals(request.getAi_decompose())) {
+            // AI細分化の注釈：説明が必要です（空だと分解できません）。また階層は最大4までです。
             generateChildTasks(taskSid, userSid, request, "update");
         }
 

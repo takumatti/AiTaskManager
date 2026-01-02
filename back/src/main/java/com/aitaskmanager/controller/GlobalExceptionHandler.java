@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -67,5 +68,19 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .contentType(new MediaType("application", "json", StandardCharsets.UTF_8))
                 .body(Map.of("message", "サーバーエラーが発生しました"));
+    }
+
+    /**
+     * Bean Validation 例外（@Valid/@NotBlank 等）のハンドリング
+     */
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<?> handleValidation(MethodArgumentNotValidException ex) {
+        String message = ex.getBindingResult().getFieldErrors().stream()
+                .findFirst()
+                .map(err -> err.getDefaultMessage())
+                .orElse("入力値が不正です");
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .contentType(new MediaType("application", "json", StandardCharsets.UTF_8))
+                .body(Map.of("message", message));
     }
 }

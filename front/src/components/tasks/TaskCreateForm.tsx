@@ -43,7 +43,9 @@ export const TaskCreateForm = ({
 
   // 初期値
   const [title, setTitle] = useState(() => editingTask?.title ?? "");
+  const [titleError, setTitleError] = useState<string | null>(null);
   const [description, setDescription] = useState(() => editingTask?.description ?? "");
+  const [descError, setDescError] = useState<string | null>(null);
   // DB値→UI値変換
   const dbToUiStatus = (status?: string) => {
     switch (status) {
@@ -97,18 +99,57 @@ export const TaskCreateForm = ({
     if (fromEdit !== undefined) return fromEdit;
     return initialDueDate ?? undefined;
   });
+  const [dueError, setDueError] = useState<string | null>(null);
   // 新規作成モードのみ、AI細分化チェックを提供（編集モードでは提供しない）
   const [aiDecompose, setAiDecompose] = useState<boolean>(false);
 
   // フォーム送信ハンドラ
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
+    // タイトル必須のUIバリデーション
+    const trimmedTitle = (title ?? "").trim();
+    if (!trimmedTitle) {
+      setTitleError("タイトルは必須です");
+      return;
+    }
+    setTitleError(null);
+    // AIプレビュー利用時は説明必須（質の担保）
+    const trimmedDesc = (description ?? "").trim();
+    if (!isEdit && aiDecompose && !trimmedDesc) {
+      setDescError("AIプレビューには説明が必要です");
+      return;
+    }
+    setDescError(null);
+    // 期限日の手入力バリデーション（任意入力だが、入力がある場合は検証）
+    if (dueDate && dueDate !== "") {
+      const s = dueDate.trim();
+      const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (!m) {
+        setDueError("期限日は yyyy-MM-dd 形式で入力してください");
+        return;
+      }
+      const y = Number(m[1]);
+      const mo = Number(m[2]);
+      const d = Number(m[3]);
+      // 月1-12、日1-31の基本チェック＋存在判定
+      const isValidBase = y >= 1900 && y <= 9999 && mo >= 1 && mo <= 12 && d >= 1 && d <= 31;
+      if (!isValidBase) {
+        setDueError("期限日が不正です");
+        return;
+      }
+      const dt = new Date(Date.UTC(y, mo - 1, d));
+      // 正規化しても同じ値か（存在確認、例えば 2026-02-30 は無効）
+      const same = dt.getUTCFullYear() === y && (dt.getUTCMonth() + 1) === mo && dt.getUTCDate() === d;
+      if (!same) {
+        setDueError("存在しない日付です");
+        return;
+      }
+    }
+    setDueError(null);
     // 入力値
-
     const input: TaskInput = {
-      title,
-      description: description ?? "",
+      title: trimmedTitle,
+      description: trimmedDesc,
       priority: uiToDbPriority(priority),
       status: uiToDbStatus(status),
       due_date: dueDate && dueDate !== "" ? dueDate : undefined,
@@ -137,11 +178,17 @@ export const TaskCreateForm = ({
           <div className="form-group">
             <label htmlFor="title">タイトル</label>
             <input id="title" name="title" value={title} onChange={(e) => setTitle(e.target.value)} />
+            {titleError && (
+              <div className="form-error" style={{ color: "#c00", marginTop: 4 }}>{titleError}</div>
+            )}
           </div>
 
           <div className="form-group">
             <label htmlFor="description">説明</label>
             <textarea id="description" name="description" value={description} onChange={(e) => setDescription(e.target.value)} />
+            {(!isEdit && aiDecompose && descError) && (
+              <div className="form-error" style={{ color: "#c00", marginTop: 4 }}>{descError}</div>
+            )}
           </div>
 
           <div className="form-group">
@@ -176,6 +223,9 @@ export const TaskCreateForm = ({
               value={dueDate ?? ""}
               onChange={(e) => setDueDate(e.target.value || undefined)}
             />
+            {dueError && (
+              <div className="form-error" style={{ color: "#c00", marginTop: 4 }}>{dueError}</div>
+            )}
           </div>
 
           {/* 新規作成時のみAI細分化を提供（編集では非表示） */}
@@ -187,13 +237,17 @@ export const TaskCreateForm = ({
                 type="checkbox"
                 className="form-check-input checkbox-small"
                 checked={aiDecompose}
-                onChange={(e) => setAiDecompose(e.target.checked)}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setAiDecompose(checked);
+                  if (!checked) setDescError(null);
+                }}
               />
               <label htmlFor="aiDecompose" className="form-check-label">
-                AIでタスクを細分化（小タスクを自動作成）
+                AIでタスクを細分化（プレビューで提案を表示）
               </label>
-              <div className="ai-hint" style={{ marginTop: 4 }}>
-                作成後に小タスク生成
+              <div className="ai-hint" style={{ marginTop: 4, color: "#555" }}>
+                チェックすると作成後にAIの提案プレビューを表示します。提案の保存は選択式です。AIプレビューを使う場合は説明の入力が必要です。説明が具体的なほど、より良い分解提案が得られます。
               </div>
             </div>
           )}
