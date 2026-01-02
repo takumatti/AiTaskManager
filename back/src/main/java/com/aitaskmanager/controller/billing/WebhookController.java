@@ -4,6 +4,7 @@ import com.aitaskmanager.service.billing.StripeWebhookService;
 import com.stripe.exception.SignatureVerificationException;
 import com.stripe.model.Event;
 import com.stripe.model.checkout.Session;
+import com.stripe.model.Subscription;
 import com.stripe.net.Webhook;
 import com.stripe.net.ApiResource;
 import org.slf4j.Logger;
@@ -168,6 +169,73 @@ public class WebhookController {
                         }
                     } else {
                         log.warn("[StripeWebhook] Session オブジェクトが取得できず、処理をスキップしました。");
+                    }
+                }
+                case "customer.subscription.updated" -> {
+                    var deser = event.getDataObjectDeserializer();
+                    Subscription sub = (Subscription) deser.getObject().orElse(null);
+                    if (sub == null) {
+                        String rawJson = deser.getRawJson();
+                        log.warn("[StripeWebhook] Subscriptionのデシリアライズ結果がnullです。rawJson有無={} rawJson={}", rawJson != null, rawJson);
+                        if (rawJson != null && !rawJson.isBlank()) {
+                            try {
+                                sub = com.stripe.net.ApiResource.GSON.fromJson(rawJson, Subscription.class);
+                                log.info("[StripeWebhook] フォールバックでSubscriptionを再構築しました: id={}", sub != null ? sub.getId() : null);
+                            } catch (Exception jex) {
+                                log.error("[StripeWebhook] rawJsonからのSubscription再構築に失敗: {}", jex.getMessage(), jex);
+                            }
+                        }
+                    }
+                    if (sub != null) {
+                        String stripeSubId = sub.getId();
+                        Boolean cancelAtPeriodEnd = sub.getCancelAtPeriodEnd();
+                        Long currentPeriodEnd = sub.getCurrentPeriodEnd();
+                        String status = sub.getStatus();
+                        log.info("[StripeWebhook] customer.subscription.updated: id={} status={} cancelAtPeriodEnd={} currentPeriodEnd={}", stripeSubId, status, cancelAtPeriodEnd, currentPeriodEnd);
+                        try {
+                            if (Boolean.TRUE.equals(cancelAtPeriodEnd) && currentPeriodEnd != null) {
+                                java.sql.Timestamp expiresAt = new java.sql.Timestamp(currentPeriodEnd * 1000L);
+                                // cancel_at_period_end=true → expires_at更新（statusはACTIVEのまま）
+                                stripeWebhookService.updateExpiresAtByStripeId(stripeSubId, expiresAt);
+                            }
+                            if ("canceled".equalsIgnoreCase(status)) {
+                                Long canceledAt = sub.getCanceledAt();
+                                java.sql.Timestamp canceledTs = (canceledAt != null) ? new java.sql.Timestamp(canceledAt * 1000L) : (currentPeriodEnd != null ? new java.sql.Timestamp(currentPeriodEnd * 1000L) : null);
+                                stripeWebhookService.cancelByStripeId(stripeSubId, canceledTs);
+                            }
+                        } catch (Exception ex) {
+                            log.error("[StripeWebhook] Subscription更新のローカル反映中にエラー: {}", ex.getMessage(), ex);
+                            throw ex;
+                        }
+                    }
+                }
+                case "customer.subscription.deleted" -> {
+                    var deser = event.getDataObjectDeserializer();
+                    Subscription sub = (Subscription) deser.getObject().orElse(null);
+                    if (sub == null) {
+                        String rawJson = deser.getRawJson();
+                        log.warn("[StripeWebhook] Subscriptionのデシリアライズ結果がnullです。rawJson有無={} rawJson={}", rawJson != null, rawJson);
+                        if (rawJson != null && !rawJson.isBlank()) {
+                            try {
+                                sub = com.stripe.net.ApiResource.GSON.fromJson(rawJson, Subscription.class);
+                                log.info("[StripeWebhook] フォールバックでSubscriptionを再構築しました: id={}", sub != null ? sub.getId() : null);
+                            } catch (Exception jex) {
+                                log.error("[StripeWebhook] rawJsonからのSubscription再構築に失敗: {}", jex.getMessage(), jex);
+                            }
+                        }
+                    }
+                    if (sub != null) {
+                        String stripeSubId = sub.getId();
+                        Long endedAt = sub.getEndedAt();
+                        Long currentPeriodEnd = sub.getCurrentPeriodEnd();
+                        java.sql.Timestamp cancelTs = (endedAt != null) ? new java.sql.Timestamp(endedAt * 1000L) : (currentPeriodEnd != null ? new java.sql.Timestamp(currentPeriodEnd * 1000L) : null);
+                        log.info("[StripeWebhook] customer.subscription.deleted: id={} endedAt={} currentPeriodEnd={}", stripeSubId, endedAt, currentPeriodEnd);
+                        try {
+                            stripeWebhookService.cancelByStripeId(stripeSubId, cancelTs);
+                        } catch (Exception ex) {
+                            log.error("[StripeWebhook] Subscription削除のローカル反映中にエラー: {}", ex.getMessage(), ex);
+                            throw ex;
+                        }
                     }
                 }
                 default -> {

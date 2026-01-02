@@ -118,4 +118,26 @@ public class StripeWebhookService {
         customAiUsageMapper.upsertAddBonus(userSid, now.getYear(), now.getMonthValue(), creditAmount);
         System.out.println("[StripeWebhookService] bonus_count added: +" + creditAmount + " for userSid=" + userSid + " year=" + now.getYear() + " month=" + now.getMonthValue());
     }
+
+    /**
+     * cancel_at_period_end=true を受けて expires_at を更新
+     * 
+     * @param stripeSubscriptionId StripeサブスクリプションID
+     * @param expiresAt 有効期限
+     */
+    public void updateExpiresAtByStripeId(String stripeSubscriptionId, Timestamp expiresAt) {
+        subscriptionsMapper.updateExpiresAtByStripeId(stripeSubscriptionId, expiresAt);
+        System.out.println("[StripeWebhookService] updateExpiresAtByStripeId: subId=" + stripeSubscriptionId + " expiresAt=" + expiresAt);
+    }
+
+    /**
+     * 購読終了/削除を受けて status を CANCELLED に更新
+     * 
+     * @param stripeSubscriptionId StripeサブスクリプションID
+     * @param canceledAt キャンセル日時
+     */
+    public void cancelByStripeId(String stripeSubscriptionId, Timestamp canceledAt) {
+        subscriptionsMapper.cancelByStripeId(stripeSubscriptionId, canceledAt);
+        System.out.println("[StripeWebhookService] cancelByStripeId: subId=" + stripeSubscriptionId + " canceledAt=" + canceledAt);
+    }
 }

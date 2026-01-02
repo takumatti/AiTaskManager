@@ -58,6 +58,18 @@ public interface SubscriptionsCustomMapper {
     String selectActiveStripeSubscriptionId(@Param("userSid") long userSid);
 
     /**
+     * Stripe購読IDで expires_at を更新する（cancel_at_period_end=true を受けた場合など）
+     */
+    int updateExpiresAtByStripeId(@Param("stripeSubscriptionId") String stripeSubscriptionId,
+                                  @Param("expiresAt") java.sql.Timestamp expiresAt);
+
+    /**
+     * Stripe購読IDでCANCELLEDへ更新する（購読が終了/削除された場合）
+     */
+    int cancelByStripeId(@Param("stripeSubscriptionId") String stripeSubscriptionId,
+                         @Param("canceledAt") java.sql.Timestamp canceledAt);
+
+    /**
      * ユーザーのACTIVEサブスクリプションをCANCELLEDへ更新する
      * 
      * @param userSid ユーザーSID

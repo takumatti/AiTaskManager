@@ -46,4 +46,14 @@
     WHERE user_sid = #{userSid}
       AND status = 'ACTIVE'
   </update>
+  <update id="updateExpiresAtByStripeId">
+    UPDATE subscriptions
+    SET expires_at = #{expiresAt}, updated_at = CURRENT_TIMESTAMP
+    WHERE stripe_subscription_id = #{stripeSubscriptionId}
+  </update>
+  <update id="cancelByStripeId">
+    UPDATE subscriptions
+    SET status = 'CANCELLED', expires_at = #{canceledAt}, updated_at = CURRENT_TIMESTAMP
+    WHERE stripe_subscription_id = #{stripeSubscriptionId}
+  </update>
 </mapper>
