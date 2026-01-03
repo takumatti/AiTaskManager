@@ -115,6 +115,75 @@ export default function Dashboard() {
   const [childDueDates, setChildDueDates] = useState<string[]>([]);
   // type="date"用に yyyy/MM/dd -> yyyy-MM-dd へ正規化
   const normalizeDateForInput = (v?: string | null) => (v ? v.replace(/\//g, "-") : "");
+
+  // タスクリストからの細分化要求（削除→AIプレビューを開く）
+  const handleRedecomposeFromList = async (node: import("../api/taskApi").TaskTreeNode) => {
+    try {
+      setBreakdownLoading(true);
+      // まず子孫削除
+      await apiClient.delete(`/api/tasks/${node.id}/children`);
+      // プレビュー→保存のフローで親参照が必要なため、親情報をセット
+      setLastCreatedTaskId(node.id);
+      const parentTask: Task = {
+        id: node.id,
+        userId: node.userId,
+        parentTaskId: node.parentTaskId ?? undefined,
+        title: node.title,
+        description: node.description,
+        dueDate: node.dueDate,
+        priority: node.priority as Task["priority"],
+        status: node.status as Task["status"],
+        createdAt: node.createdAt,
+        updatedAt: node.updatedAt,
+      };
+      setLastCreatedTask(parentTask);
+      // AIプレビュー取得
+      const prioForReq: "HIGH" | "NORMAL" | "LOW" | undefined =
+        String(node.priority).toUpperCase() === "LOW" ? "LOW" :
+        String(node.priority).toUpperCase() === "HIGH" ? "HIGH" :
+        String(node.priority).toUpperCase() === "NORMAL" ? "NORMAL" : undefined;
+      const req: TaskBreakdownRequest = {
+        title: node.title,
+        description: node.description ?? "",
+        dueDate: node.dueDate,
+        priority: prioForReq,
+      };
+      const resp: TaskBreakdownResponse = await breakdownTask(req);
+      if (resp.warning && resp.warning.trim()) {
+        setBreakdownWarning(resp.warning);
+      }
+      if (Array.isArray(resp.children) && resp.children.length > 0) {
+        setBreakdownPreview(resp.children);
+        setBreakdownSelection(new Array(resp.children.length).fill(true));
+        // 優先度は親の優先度を継承（なければ NORMAL）
+        const parentPri = (node.priority as TaskInput["priority"]) || "NORMAL";
+        setChildPriorities(new Array(resp.children.length).fill(parentPri as "LOW" | "NORMAL" | "HIGH"));
+        setBulkPriority(parentPri as "LOW" | "NORMAL" | "HIGH");
+        // 期限日は親の期限日を継承（なければ空）
+        const parentDueDashed = normalizeDateForInput(node.dueDate ?? "");
+        setChildDueDates(new Array(resp.children.length).fill(parentDueDashed));
+        setShowBreakdownModal(true);
+      } else {
+        setBreakdownPreview([]);
+        setBreakdownSelection([]);
+        setChildPriorities([]);
+        setChildDueDates([]);
+        setBulkPriority("NORMAL");
+        setShowBreakdownModal(false);
+        const hasExisting = !!(resp.warning && resp.warning.trim());
+        setBreakdownWarning(
+          hasExisting ? resp.warning! : "AIによる子タスク提案がありませんでした。説明をもう少し具体的にすると分解が成功しやすくなります。"
+        );
+      }
+    } catch (e) {
+      console.error("[Dashboard] redecompose from list failed", e);
+      const message = (e as Error)?.message || "AI細分化の呼び出しに失敗しました。時間をおいて再試行してください。";
+      setBreakdownWarning(message);
+      setShowBreakdownModal(false);
+    } finally {
+      setBreakdownLoading(false);
+    }
+  };
   
   const allSelect = (checked: boolean) => {
     setBreakdownSelection(prev => prev.map(() => checked));
@@ -346,6 +415,16 @@ export default function Dashboard() {
             priority: prioForReq,
           };
           console.debug("[Dashboard] breakdown request", req);
+          // 仕様: 細分化ボタン押下時は既存の子・孫タスクを削除してからプレビューを開く
+          try {
+            if (createdTask?.id != null) {
+              await apiClient.delete(`/api/tasks/${createdTask.id}/children`);
+              console.debug("[Dashboard] deleted existing children/grandchildren for", createdTask.id);
+            }
+          } catch (delErr) {
+            console.warn("[Dashboard] failed to delete existing children before breakdown", delErr);
+            // 削除失敗でもプレビューは試みる（サーバ側で権限や存在チェック済み）
+          }
           const resp: TaskBreakdownResponse = await breakdownTask(req);
           console.debug("[Dashboard] breakdown response children", resp.children?.length ?? 0, resp);
           // 警告があればフォーム上部に表示（ダッシュボードヘッダー直下）
@@ -691,6 +770,7 @@ export default function Dashboard() {
               tasks={filteredTasks}
               onEdit={handleEdit}
               onDelete={handleDelete}
+              onRedecompose={handleRedecomposeFromList}
               onCreateChild={(parentId: number, depth: number) => {
                 // 子追加: 親IDをセットして新規作成フォームを開く
                 setEditingTask(null);
@@ -739,7 +819,7 @@ export default function Dashboard() {
               <div className="modal-content">
                 <div className="modal-header">
                   <h5 className="modal-title">AI細分化の提案</h5>
-                  <button type="button" className="btn-close" onClick={() => { setShowBreakdownModal(false); setBreakdownPreview([]); }}></button>
+                  <button type="button" className="btn-close" onClick={async () => { setShowBreakdownModal(false); setBreakdownPreview([]); const tasks = await fetchTasks(); setAllTasks(tasks); setDataVersion(v => v + 1); }}></button>
                 </div>
                 <div className="modal-body">
                   {breakdownPreview.length === 0 ? (
@@ -833,7 +913,7 @@ export default function Dashboard() {
                   )}
                 </div>
                 <div className="modal-footer">
-                  <button className="btn btn-outline-secondary" onClick={() => { setShowBreakdownModal(false); setBreakdownPreview([]); setBreakdownSelection([]); }}>閉じる</button>
+                  <button className="btn btn-outline-secondary" onClick={async () => { setShowBreakdownModal(false); setBreakdownPreview([]); setBreakdownSelection([]); const tasks = await fetchTasks(); setAllTasks(tasks); setDataVersion(v => v + 1); }}>閉じる</button>
                   <button className="btn btn-primary" disabled={creatingChildren} onClick={createSelectedChildren}>
                     {creatingChildren ? "作成中..." : "選択した子を作成"}
                   </button>

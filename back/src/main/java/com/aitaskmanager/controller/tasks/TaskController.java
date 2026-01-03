@@ -190,4 +190,15 @@ public class TaskController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * 指定した親タスク配下（子・孫）のみを削除するエンドポイント（親は残す）
+     */
+    @DeleteMapping("/{id}/children")
+    public ResponseEntity<Void> deleteChildren(@PathVariable("id") int id, Authentication authentication) {
+        Integer userSid = RequestGuard.requireUserSid();
+        LogUtil.controller(TaskController.class, "tasks.delete-children id=" + id, userSid, authentication != null ? com.aitaskmanager.security.AuthUtils.getUserId(authentication) : null, "invoked");
+        taskService.deleteChildrenOnly(id, userSid);
+        return ResponseEntity.noContent().build();
+    }
+
 }

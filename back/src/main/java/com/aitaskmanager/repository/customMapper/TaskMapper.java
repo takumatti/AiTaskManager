@@ -58,9 +58,9 @@ public interface TaskMapper {
     /**
      * タスクを更新する
      * 
-     * @param task タスクオブジェクト
-     * @return 更新された行数
-     */
+      * @param task タスクオブジェクト
+      * @return 更新された行数
+      */
     int update(Tasks task);
 
     /**
@@ -81,5 +81,23 @@ public interface TaskMapper {
      */
     int deleteByTaskSidAndUserSid(@Param("taskSid") Integer taskSid, 
                             @Param("userSid") Integer userSid);
+
+    /**
+     * 指定した親の直下にあるタスクSID一覧を取得
+     */
+    List<Integer> selectIdsByParent(@Param("userSid") Integer userSid,
+                                    @Param("parentTaskSid") Integer parentTaskSid);
+
+    /**
+     * 指定リストの親IDにぶら下がるタスクSID一覧を取得
+     */
+    List<Integer> selectIdsByParents(@Param("userSid") Integer userSid,
+                                     @Param("parentTaskSids") List<Integer> parentTaskSids);
+
+    /**
+     * 指定したタスクSID群を削除
+     */
+    int deleteByIds(@Param("userSid") Integer userSid,
+                    @Param("taskSids") List<Integer> taskSids);
 
 }

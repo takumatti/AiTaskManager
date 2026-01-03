@@ -73,4 +73,33 @@
     where task_sid = #{taskSid}
       and user_sid = #{userSid}
   </delete>
+
+  <!-- 直下の子のSID一覧 -->
+  <select id="selectIdsByParent" resultType="int">
+    select task_sid
+    from tasks
+    where user_sid = #{userSid}
+      and parent_task_sid = #{parentTaskSid}
+  </select>
+
+  <!-- 指定した親SID群にぶら下がる子のSID一覧 -->
+  <select id="selectIdsByParents" resultType="int">
+    select task_sid
+    from tasks
+    where user_sid = #{userSid}
+      and parent_task_sid in
+      <foreach collection="parentTaskSids" item="pid" open="(" close=")" separator=",">
+        #{pid}
+      </foreach>
+  </select>
+
+  <!-- 指定SID群のタスクを削除 -->
+  <delete id="deleteByIds">
+    delete from tasks
+    where user_sid = #{userSid}
+      and task_sid in
+      <foreach collection="taskSids" item="sid" open="(" close=")" separator=",">
+        #{sid}
+      </foreach>
+  </delete>
 </mapper>

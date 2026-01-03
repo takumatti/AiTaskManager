@@ -71,11 +71,6 @@ export const fetchTaskTree = async (): Promise<TaskTreeNode[]> => {
 };
 
 
-// 細分化API
-export const decomposeTask = async (id: number, input: Partial<TaskInput>): Promise<TaskTreeNode[]> => {
-  const res = await apiClient.post<TaskTreeNode[]>(`${API_BASE}/${id}/decompose`, input);
-  return res.data;
-};
 
 // タスク作成API
 export const createTask = async (task: TaskInput): Promise<Task> => {

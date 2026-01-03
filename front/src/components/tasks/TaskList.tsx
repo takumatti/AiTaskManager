@@ -1,6 +1,7 @@
 import type { Task } from "../../types/task";
 import { useState, useMemo, useEffect } from "react";
-import { decomposeTask, fetchTaskTree } from "../../api/taskApi";
+import { fetchTaskTree } from "../../api/taskApi";
+import apiClient from "../../api/apiClient";
 import type { TaskTreeNode } from "../../api/taskApi";
 import "./TaskList.css";
 
@@ -10,17 +11,18 @@ export const TaskList = ({
   onDelete,
   onEdit,
   onCreateChild,
+  onRedecompose,
   forceFlat,
 }: {
   tasks: Task[];
   onDelete: (id: number) => void;
   onEdit: (task: Task) => void;
   onCreateChild?: (parentId: number, depth: number) => void;
+  onRedecompose?: (node: TaskTreeNode) => void;
   forceFlat?: boolean; // 渡されたtasksをフラットにそのまま表示（フィルタ/ソート反映）
 }) => {
   const [tree, setTree] = useState<TaskTreeNode[] | null>(null);
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
-  const [highlightIds, setHighlightIds] = useState<Set<number>>(new Set());
   const [loadingRedecompose, setLoadingRedecompose] = useState<number | null>(null);
 
   // 階層表示が不要ならツリーの自動ロードをスキップ
@@ -67,16 +69,14 @@ export const TaskList = ({
   const handleRedecompose = async (node: TaskTreeNode) => {
     setLoadingRedecompose(node.id);
     try {
-  const newTree = await decomposeTask(node.id, { description: node.description });
-      setTree(newTree);
-      // 新しい子IDをハイライト（親の直下のみ）
-      const parent = newTree.find(p => p.id === node.id);
-      if (parent) {
-        const ids = new Set(parent.children.map(c => c.id));
-        setHighlightIds(ids);
+      if (onRedecompose) {
+        await onRedecompose(node);
+      } else {
+        // フォールバック: 親の子孫削除→ツリー再取得
+        await apiClient.delete(`/api/tasks/${node.id}/children`);
+        const newTree = await fetchTaskTree();
+        setTree(newTree);
         setExpanded(prev => ({ ...prev, [node.id]: true }));
-        // 3秒後にハイライト解除
-        setTimeout(() => setHighlightIds(new Set()), 3000);
       }
     } catch (e) {
       console.error("redecompose fail", e);
@@ -112,7 +112,7 @@ export const TaskList = ({
     return (
       <div
         key={node.id}
-        className={`task-tree-item ${statusClass} ${priorityClass} ${overdueClass ? `status-${overdueClass}` : ""} ${highlightIds.has(node.id) ? "new-child-highlight" : ""}`}
+  className={`task-tree-item ${statusClass} ${priorityClass} ${overdueClass ? `status-${overdueClass}` : ""}`}
       >
         <div className="task-tree-inner">
           <div className="task-tree-row">

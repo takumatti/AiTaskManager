@@ -222,6 +222,28 @@ public class TaskService {
     }
 
     /**
+     * 親タスクは残し、直下の子と孫（2階層）を削除する
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteChildrenOnly(int parentTaskSid, Integer userSid) {
+        LogUtil.service(TaskService.class, "tasks.delete-children", "parentTaskSid=" + parentTaskSid + " userSid=" + userSid, "started");
+        // まず直下の子一覧を取得
+        List<Integer> childIds = taskMapper.selectIdsByParent(userSid, parentTaskSid);
+        if (childIds == null || childIds.isEmpty()) {
+            LogUtil.service(TaskService.class, "tasks.delete-children", "parentTaskSid=" + parentTaskSid + " userSid=" + userSid, "no-children");
+            return;
+        }
+        // 孫一覧を取得して先に削除
+        List<Integer> grandchildIds = taskMapper.selectIdsByParents(userSid, childIds);
+        if (grandchildIds != null && !grandchildIds.isEmpty()) {
+            taskMapper.deleteByIds(userSid, grandchildIds);
+        }
+        // 子を削除
+        taskMapper.deleteByIds(userSid, childIds);
+        LogUtil.service(TaskService.class, "tasks.delete-children", "parentTaskSid=" + parentTaskSid + " userSid=" + userSid, "completed");
+    }
+
+    /**
      * タスクのサブツリーを再帰的に削除する
      * 
      * @param parentSid 親タスクSID
