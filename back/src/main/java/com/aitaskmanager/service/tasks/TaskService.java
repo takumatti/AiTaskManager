@@ -140,6 +140,10 @@ public class TaskService {
         if (Boolean.TRUE.equals(request.getAi_decompose())) {
             log.info("[TaskService] ai_decompose=true on create: 自動生成は行いません（プレビュー→選択保存で実施） parentSid={} userSid={}", task.getTaskSid(), userSid);
         }
+        // AI提案から作成された子タスクの保存時は使用回数をカウント（保存時のみ消費のポリシー）
+        if (Boolean.TRUE.equals(request.getAi_generated())) {
+            incrementAiUsage(userSid);
+        }
         Tasks result = taskMapper.selectByTaskSidAndUserSid(task.getTaskSid(), userSid);
         LogUtil.service(TaskService.class, "tasks.create", "taskSid=" + result.getTaskSid() + " userSid=" + userSid, "completed");
     return result;

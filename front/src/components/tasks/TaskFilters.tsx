@@ -28,9 +28,9 @@ export const TaskFilters = ({
       {showPriority && (
         <select value={priority} onChange={(e) => onPriorityChange(e.target.value)}>
           <option value="">すべての優先度</option>
-          <option value="LOW">低</option>
-          <option value="NORMAL">普通</option>
           <option value="HIGH">高</option>
+          <option value="NORMAL">中</option>
+          <option value="LOW">低</option>
         </select>
       )}
     </div>

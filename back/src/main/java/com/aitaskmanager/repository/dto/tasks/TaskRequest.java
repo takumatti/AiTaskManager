@@ -27,4 +27,6 @@ public class TaskRequest {
     private String status;
     /** AIで細分化するか（trueならサブタスク生成を試みる） */
     private Boolean ai_decompose;
+    /** AI提案から作成された子タスクであるか（保存時に使用回数をカウントするためのフラグ） */
+    private Boolean ai_generated;
 }

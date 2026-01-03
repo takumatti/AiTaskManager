@@ -57,7 +57,8 @@ Thumbs.db
 back/src/main/resources/application.properties
 back/src/main/resources/generatorConfig.xml
 
-db/*
+#別フォルダに移動
+#db/*
 .vscode/*
 .github/*
 back/src/main/resources/META-INF/additional-spring-configuration-metadata.json
@@ -68,3 +69,4 @@ front/tsconfig.node.json
 back/logs/application.log
 back/logs/*
 logs/*
+README.md

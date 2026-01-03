@@ -102,6 +102,7 @@ export default function Dashboard() {
   const [breakdownWarning, setBreakdownWarning] = useState<string | null>(null);
   const [breakdownPreview, setBreakdownPreview] = useState<Array<{ title: string; description?: string }>>([]);
   const [showBreakdownModal, setShowBreakdownModal] = useState(false);
+  const [breakdownLoading, setBreakdownLoading] = useState(false);
   const [breakdownSelection, setBreakdownSelection] = useState<boolean[]>([]);
   const [creatingChildren, setCreatingChildren] = useState(false);
   const [lastCreatedTaskId, setLastCreatedTaskId] = useState<number | null>(null);
@@ -333,6 +334,7 @@ export default function Dashboard() {
       // 新規作成後にAI細分化（チェックON時のみプレビューを開く）
       if ((input as unknown as { ai_decompose?: boolean }).ai_decompose) {
         try {
+          setBreakdownLoading(true);
           const prioForReq: "HIGH" | "NORMAL" | "LOW" | undefined =
             input.priority === "LOW" ? "LOW" :
             input.priority === "NORMAL" ? "NORMAL" :
@@ -364,6 +366,7 @@ export default function Dashboard() {
             setChildDueDates(new Array(resp.children.length).fill(parentDueDashed));
             // 既存の警告は一旦クリアして新しいプレビューに集中
             setBreakdownWarning(null);
+            setBreakdownLoading(false);
             setShowBreakdownModal(true);
           } else {
             // 既存のwarningが空ならデフォルト文言を表示して親のみ作成を通知
@@ -381,6 +384,7 @@ export default function Dashboard() {
                   : "AIによる子タスク提案がありませんでした。親タスクのみ作成しています。説明をもう少し具体的にすると分解が成功しやすくなります。"
               );
             }
+            setBreakdownLoading(false);
           }
         } catch (e) {
           console.error("AI細分化の呼び出しに失敗しました", e);
@@ -388,6 +392,7 @@ export default function Dashboard() {
           setBreakdownWarning(message);
           // エラー時はモーダルを閉じて操作を解除
           setShowBreakdownModal(false);
+          setBreakdownLoading(false);
         }
       }
     } catch (error) {
@@ -421,7 +426,7 @@ export default function Dashboard() {
     }
     setCreatingChildren(true);
     try {
-      for (const { c, idx } of selected) {
+  for (const { c, idx } of selected) {
         // 子ごとに選択された優先度（未設定なら親→NORMAL）
         const priorityForChild: TaskInput["priority"] = (childPriorities[idx] as TaskInput["priority"]) || (lastCreatedTask?.priority as TaskInput["priority"]) || "NORMAL";
         const statusForChild: TaskInput["status"] = (lastCreatedTask?.status as TaskInput["status"]) || "TODO";
@@ -430,6 +435,8 @@ export default function Dashboard() {
           description: c.description ?? "",
           parent_task_id: lastCreatedTaskId,
           parentTaskId: lastCreatedTaskId as number,
+          // AI 提案から作成された子タスク（初回のみカウント対象）
+          ai_generated: idx === selected[0].idx ? (true as unknown as boolean) : undefined,
           // 親の属性を継承（未設定なら既定値）
           priority: priorityForChild,
           status: statusForChild,
@@ -442,6 +449,8 @@ export default function Dashboard() {
       const tasks = await fetchTasks();
       setAllTasks(tasks);
       setDataVersion(v => v + 1);
+    // 子タスク作成により AI 使用回数が増えるため、クォータを再取得して表示を更新
+    await reloadQuota();
       setPlanMessage({ type: 'success', text: '選択した子タスクを作成しました' });
       // モーダルを閉じる
       setShowBreakdownModal(false);
@@ -524,6 +533,12 @@ export default function Dashboard() {
               <button type="button" className="btn btn-sm btn-outline-secondary ms-2" onClick={() => setBreakdownWarning(null)}>閉じる</button>
             </div>
           )}
+          {breakdownLoading && (
+            <div className="alert alert-info py-2 d-flex align-items-center gap-2" style={{ marginTop: 8 }}>
+              <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+              <span>AI が子タスクを作成しています…</span>
+            </div>
+          )}
 
             <div className="dashboard-header-sub" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               {/* 左端：表示切替ボタン＋その下にリスト表示モードトグル（縦並び） */}
@@ -570,9 +585,11 @@ export default function Dashboard() {
                             </div>
                             {aiQuota.resetDate && (
                               <div>
-                                <span className="text-muted">リセット:</span> <span className="fw-semibold">{aiQuota.resetDate}</span>
+                                <div>
+                                  <span className="text-muted">次回リセット日:</span> <span className="fw-semibold">{aiQuota.resetDate}</span>
+                                </div>
                                 {typeof aiQuota.daysUntilReset === 'number' && (
-                                  <span className="ms-1 text-muted">（あと{aiQuota.daysUntilReset}日）</span>
+                                  <div className="text-muted">（切替まで残り {aiQuota.daysUntilReset} 日）</div>
                                 )}
                               </div>
                             )}
@@ -586,9 +603,11 @@ export default function Dashboard() {
                             </div>
                             {aiQuota.resetDate && (
                               <div>
-                                <span className="text-muted">リセット:</span> <span className="fw-semibold">{aiQuota.resetDate}</span>
+                                <div>
+                                  <span className="text-muted">次回リセット日:</span> <span className="fw-semibold">{aiQuota.resetDate}</span>
+                                </div>
                                 {typeof aiQuota.daysUntilReset === 'number' && (
-                                  <span className="ms-1 text-muted">（あと{aiQuota.daysUntilReset}日）</span>
+                                  <div className="text-muted">（切替まで残り {aiQuota.daysUntilReset} 日）</div>
                                 )}
                               </div>
                             )}
