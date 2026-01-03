@@ -178,6 +178,10 @@ logs/         # アプリケーションログ
 
 <div align="right">(<a href="#top">トップへ</a>)</div>
 
+## ドキュメントについて
+本プロジェクトの設計書・DDL・DMLは  
+**非公開リポジトリで管理しています**。
+
 ## 貢献
 
 Issue/Pull Request を歓迎します。開発方針・Mapper の命名規約・Stripe のドメインルールに沿ってください。
