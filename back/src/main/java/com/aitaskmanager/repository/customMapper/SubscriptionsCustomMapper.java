@@ -1,6 +1,8 @@
 package com.aitaskmanager.repository.customMapper;
 
 import java.sql.Timestamp;
+import java.util.List;
+import java.util.Map;
 
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -68,6 +70,11 @@ public interface SubscriptionsCustomMapper {
      */
     int cancelByStripeId(@Param("stripeSubscriptionId") String stripeSubscriptionId,
                          @Param("canceledAt") java.sql.Timestamp canceledAt);
+
+    /**
+     * リコンシリエーション用: Stripe購読IDを持つACTIVE契約の一覧を取得
+     */
+    List<Map<String, Object>> selectActiveWithStripeId();
 
     /**
      * ユーザーのACTIVEサブスクリプションをCANCELLEDへ更新する

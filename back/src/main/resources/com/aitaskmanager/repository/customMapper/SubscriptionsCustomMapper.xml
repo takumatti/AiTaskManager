@@ -46,6 +46,12 @@
     WHERE user_sid = #{userSid}
       AND status = 'ACTIVE'
   </update>
+  <select id="selectActiveWithStripeId" resultType="map">
+    SELECT stripe_subscription_id, user_sid
+    FROM subscriptions
+    WHERE status = 'ACTIVE'
+      AND stripe_subscription_id IS NOT NULL
+  </select>
   <update id="updateExpiresAtByStripeId">
     UPDATE subscriptions
     SET expires_at = #{expiresAt}, updated_at = CURRENT_TIMESTAMP
