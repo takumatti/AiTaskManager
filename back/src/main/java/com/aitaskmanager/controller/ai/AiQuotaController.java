@@ -101,16 +101,32 @@ public class AiQuotaController {
             Integer aiQuotaNullable = (plan != null) ? plan.getAiQuota() : null; // 4=unlimited, null=unlimited, 0=not allowed
             int aiQuotaValue = (aiQuotaNullable != null) ? aiQuotaNullable.intValue() : 0; // 演算は非NULLで安全に
 
-            // 今月のAI使用量を取得
-            LocalDate now = LocalDate.now();
+            // 現在日時（Asia/Tokyo）
+            LocalDate now = LocalDate.now(ZoneId.of("Asia/Tokyo"));
             Integer uid = (user.getUserSid() != null) ? Math.toIntExact(user.getUserSid()) : null;
-                Integer usedCount = (uid != null) ? customAiUsageMapper.selectUsedCount(uid, now.getYear(), now.getMonthValue()) : 0;
+                // アンカー連動期間の年月キーを決定
+                Integer periodYear = now.getYear();
+                Integer periodMonth = now.getMonthValue();
+                Long userSidLong = user.getUserSid();
+                java.sql.Timestamp startedAtTsAnchor = (userSidLong != null) ? subscriptionsCustomMapper.selectLatestStartedAt(userSidLong) : null;
+                if (startedAtTsAnchor != null) {
+                    LocalDate startedDate = startedAtTsAnchor.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+                    LocalDate cursor = startedDate;
+                    while (true) {
+                        LocalDate next = addOneMonthSameDayClamped(cursor);
+                        if (next.isAfter(now)) break;
+                        cursor = next;
+                    }
+                    periodYear = cursor.getYear();
+                    periodMonth = cursor.getMonthValue();
+                }
+                Integer usedCount = (uid != null) ? customAiUsageMapper.selectUsedCount(uid, periodYear, periodMonth) : 0;
                 int used = (usedCount != null) ? usedCount.intValue() : 0;
                 // ボーナス回数（回数パック）を取得
-                Integer bonusCount = (uid != null) ? customAiUsageMapper.selectBonusCount(uid, now.getYear(), now.getMonthValue()) : 0;
+                Integer bonusCount = (uid != null) ? customAiUsageMapper.selectBonusCount(uid, periodYear, periodMonth) : 0;
                 int bonus = (bonusCount != null) ? bonusCount.intValue() : 0;
 
-            // リセット日: 契約開始日の翌月同日（存在しない場合は月末にクランプ）。契約が無い場合は翌月1日。
+            // リセット日: 最新購読のアンカー（started_at）からの翌サイクル開始日（存在しない場合は月末にクランプ）。契約が無い場合は翌月1日。
             LocalDate resetDate;
             long daysUntilReset;
             try {
@@ -118,11 +134,16 @@ public class AiQuotaController {
                 java.sql.Timestamp startedAtTs = (userSid != null) ? subscriptionsCustomMapper.selectLatestStartedAt(userSid) : null;
                 if (startedAtTs != null) {
                     LocalDate startedDate = startedAtTs.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
-                    int dom = startedDate.getDayOfMonth();
-                    LocalDate cand = startedDate.plusMonths(1);
-                    int endOfMonth = cand.lengthOfMonth();
-                    int clampedDay = Math.min(dom, endOfMonth);
-                    resetDate = LocalDate.of(cand.getYear(), cand.getMonth(), clampedDay);
+                    // 現在サイクル開始日を求め、その翌サイクル開始日をリセット日とする
+                    LocalDate cursor = startedDate;
+                    while (true) {
+                        LocalDate next = addOneMonthSameDayClamped(cursor);
+                        if (next.isAfter(now)) { // next が次回サイクル開始
+                            resetDate = next;
+                            break;
+                        }
+                        cursor = next;
+                    }
                 } else {
                     resetDate = now.withDayOfMonth(1).plusMonths(1);
                 }
@@ -159,6 +180,17 @@ public class AiQuotaController {
             log.warn("[AiQuotaController] failed: {}", ex.toString());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error("internal-error"));
         }
+    }
+
+    /**
+     * 翌月同日を試み、存在しない場合は月末へクランプして1か月進める。
+     */
+    private LocalDate addOneMonthSameDayClamped(LocalDate base) {
+        LocalDate cand = base.plusMonths(1);
+        int dom = base.getDayOfMonth();
+        int endOfMonth = cand.lengthOfMonth();
+        int clampedDay = Math.min(dom, endOfMonth);
+        return LocalDate.of(cand.getYear(), cand.getMonth(), clampedDay);
     }
 
     /**

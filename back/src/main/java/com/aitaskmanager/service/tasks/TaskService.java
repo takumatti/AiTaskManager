@@ -21,6 +21,7 @@ import com.aitaskmanager.repository.customMapper.UserMapper;
 import com.aitaskmanager.repository.dto.tasks.TaskRequest;
 import com.aitaskmanager.repository.dto.tasks.TaskTreeResponse;
 import com.aitaskmanager.repository.customMapper.CustomAiUsageMapper;
+import com.aitaskmanager.repository.customMapper.SubscriptionsCustomMapper;
 import com.aitaskmanager.repository.generator.SubscriptionPlansMapper;
 import com.aitaskmanager.repository.model.SubscriptionPlans;
 import com.aitaskmanager.repository.model.Tasks;
@@ -46,6 +47,9 @@ public class TaskService {
 
     @Autowired
     private CustomAiUsageMapper customAiUsageMapper;
+
+    @Autowired
+    private SubscriptionsCustomMapper subscriptionsCustomMapper;
 
     @Autowired
     private SubscriptionPlansMapper subscriptionPlansMapper;
@@ -443,9 +447,29 @@ public class TaskService {
         }
 
         LocalDate now = LocalDate.now(ZoneId.of("Asia/Tokyo"));
-        Integer used = customAiUsageMapper.selectUsedCount(userSid, now.getYear(), now.getMonthValue());
+        // アンカー連動: アクティブ購読の started_at を基準に現在のサイクルの年月キーを決定
+        Integer periodYear = now.getYear();
+        Integer periodMonth = now.getMonthValue();
+        try {
+            java.sql.Timestamp startedAtTs = subscriptionsCustomMapper.selectLatestStartedAt(userSid != null ? Long.valueOf(userSid) : null);
+            if (startedAtTs != null) {
+                LocalDate startedDate = startedAtTs.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+                // startedDate から now を超えない最大のサイクル開始日を算出（毎月同日、存在しない場合は月末にクランプ）
+                LocalDate cursor = startedDate;
+                while (true) {
+                    LocalDate next = addOneMonthSameDayClamped(cursor);
+                    if (next.isAfter(now)) break;
+                    cursor = next;
+                }
+                periodYear = cursor.getYear();
+                periodMonth = cursor.getMonthValue();
+            }
+        } catch (Exception ignore) {
+            // 購読なしや取得失敗時はカレンダー当月を使用
+        }
+        Integer used = customAiUsageMapper.selectUsedCount(userSid, periodYear, periodMonth);
         if (used == null) used = 0;
-        Integer bonus = customAiUsageMapper.selectBonusCount(userSid, now.getYear(), now.getMonthValue());
+        Integer bonus = customAiUsageMapper.selectBonusCount(userSid, periodYear, periodMonth);
         if (bonus == null) bonus = 0;
 
         // 無制限プラン（ai_quota が null または 4）は常に許可（API設定は別途チェック）
@@ -476,7 +500,36 @@ public class TaskService {
      */
     private void incrementAiUsage(Integer userSid) {
         LocalDate now = LocalDate.now(ZoneId.of("Asia/Tokyo"));
-        customAiUsageMapper.upsertIncrement(userSid, now.getYear(), now.getMonthValue());
+        Integer periodYear = now.getYear();
+        Integer periodMonth = now.getMonthValue();
+        try {
+            java.sql.Timestamp startedAtTs = subscriptionsCustomMapper.selectLatestStartedAt(userSid != null ? Long.valueOf(userSid) : null);
+            if (startedAtTs != null) {
+                LocalDate startedDate = startedAtTs.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+                LocalDate cursor = startedDate;
+                while (true) {
+                    LocalDate next = addOneMonthSameDayClamped(cursor);
+                    if (next.isAfter(now)) break;
+                    cursor = next;
+                }
+                periodYear = cursor.getYear();
+                periodMonth = cursor.getMonthValue();
+            }
+        } catch (Exception ignore) {
+            // フォールバック: 当月
+        }
+        customAiUsageMapper.upsertIncrement(userSid, periodYear, periodMonth);
+    }
+
+    /**
+     * 翌月同日を試み、存在しない場合は月末へクランプして1か月進める。
+     */
+    private LocalDate addOneMonthSameDayClamped(LocalDate base) {
+        LocalDate cand = base.plusMonths(1);
+        int dom = base.getDayOfMonth();
+        int endOfMonth = cand.lengthOfMonth();
+        int clampedDay = Math.min(dom, endOfMonth);
+        return LocalDate.of(cand.getYear(), cand.getMonth(), clampedDay);
     }
 
     
